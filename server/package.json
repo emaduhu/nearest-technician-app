@@ -1,0 +1,19 @@
+{
+  "name": "nearest-tech-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node index.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "firebase-admin": "^11.7.0",
+    "mongoose": "^7.3.4",
+    "dotenv": "^16.3.1",
+    "body-parser": "^1.20.2",
+    "bcrypt": "^5.1.0"
+  }
+}
