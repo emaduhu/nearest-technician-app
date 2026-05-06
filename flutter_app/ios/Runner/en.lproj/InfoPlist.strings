@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Nearest Technician";
+"NSLocationWhenInUseUsageDescription" = "Nearest Technician uses your location to find nearby technicians, sync technician availability, and track service requests.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Nearest Technician uses location updates to keep active service requests accurate when tracking is enabled.";

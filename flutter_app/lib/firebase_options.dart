@@ -5,7 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    return FirebaseOptions(
+    return const FirebaseOptions(
       apiKey: 'AIzaSyChxVHX-NR0IbkC1PMs6SHjL-yQNnF2_7o',
       appId: '1:504783001367:android:b4b16484ad17c3f7d38952',
       messagingSenderId: '504783001367',

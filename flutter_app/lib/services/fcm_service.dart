@@ -1,19 +1,22 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class FcmService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-
   Future<String?> init(Function(Map<String, dynamic>) onMessage) async {
-    final settings = await _messaging.requestPermission();
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      FirebaseMessaging.onMessage.listen((RemoteMessage msg) {
-        onMessage(msg.data);
-      });
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage msg) {
-        onMessage(msg.data);
-      });
-      FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
-      return await _messaging.getToken();
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission();
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        FirebaseMessaging.onMessage.listen((RemoteMessage msg) {
+          onMessage(msg.data);
+        });
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage msg) {
+          onMessage(msg.data);
+        });
+        FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+        return await messaging.getToken();
+      }
+    } catch (_) {
+      return null;
     }
     return null;
   }

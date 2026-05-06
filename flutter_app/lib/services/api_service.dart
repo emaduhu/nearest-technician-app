@@ -1,27 +1,118 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const SERVER_URL = 'http://10.0.2.2:3000'; // change to your server IP for real devices
-// const String SERVER_URL = 'http://192.168.1.10:3000'; // your local IP
+const serverUrl =
+    String.fromEnvironment('SERVER_URL', defaultValue: 'http://10.0.2.2:3000');
 
 class ApiService {
-  Future<http.Response> registerDevice(Map<String, dynamic> payload) async {
-    final res = await http.post(Uri.parse('$SERVER_URL/api/register'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(payload));
-    return res;
+  static const Map<String, String> _headers = {
+    'Content-Type': 'application/json'
+  };
+
+  Future<Map<String, dynamic>> registerDevice(
+      Map<String, dynamic> payload) async {
+    return _decode(await http.post(Uri.parse('$serverUrl/api/register'),
+        headers: _headers, body: jsonEncode(payload)));
   }
 
-  Future<http.Response> requestTechnician(Map<String, dynamic> payload) async {
-    final res = await http.post(Uri.parse('$SERVER_URL/api/request'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(payload));
-    return res;
+  Future<Map<String, dynamic>> login(Map<String, dynamic> payload) async {
+    return _decode(await http.post(Uri.parse('$serverUrl/api/login'),
+        headers: _headers, body: jsonEncode(payload)));
   }
 
-  Future<http.Response> getNearest(double lat, double lng) async {
-    final res = await http.get(Uri.parse('$SERVER_URL/api/technician/nearest?lat=\$lat&lng=\$lng'));
-    return res;
+  Future<List<dynamic>> searchTechnicians({
+    required String skill,
+    required double lat,
+    required double lon,
+    required double maxDistanceKm,
+    required bool available,
+    required double minRating,
+  }) async {
+    final uri = Uri.parse('$serverUrl/api/technicians/search')
+        .replace(queryParameters: {
+      'skill': skill,
+      'lat': '$lat',
+      'lon': '$lon',
+      'maxDistanceKm': '$maxDistanceKm',
+      'available': '$available',
+      'minRating': '$minRating',
+    });
+    final body = await _decodeAny(await http.get(uri));
+    return body is List ? body : [];
   }
 
-  Future<http.Response> searchNearestBySkill(String skill, double lat, double lon) {
-    final uri = Uri.parse('$SERVER_URL/api/technicians/search?skill=${Uri.encodeComponent(skill)}&lat=$lat&lon=$lon');
-    return http.get(uri);
+  Future<Map<String, dynamic>> requestTechnician(
+      Map<String, dynamic> payload) async {
+    return _decode(await http.post(Uri.parse('$serverUrl/api/requests'),
+        headers: _headers, body: jsonEncode(payload)));
+  }
+
+  Future<Map<String, dynamic>> respondToRequest(
+      String requestId, Map<String, dynamic> payload) async {
+    return _decode(await http.patch(
+        Uri.parse('$serverUrl/api/requests/$requestId/respond'),
+        headers: _headers,
+        body: jsonEncode(payload)));
+  }
+
+  Future<List<dynamic>> getHistory(
+      {String? clientId, String? technicianId, String? status}) async {
+    final params = <String, String>{};
+    if (clientId != null && clientId.isNotEmpty) {
+      params['clientId'] = clientId;
+    }
+    if (technicianId != null && technicianId.isNotEmpty) {
+      params['technicianId'] = technicianId;
+    }
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    final body = await _decodeAny(await http.get(
+        Uri.parse('$serverUrl/api/requests/history')
+            .replace(queryParameters: params)));
+    return body is List ? body : [];
+  }
+
+  Future<Map<String, dynamic>> updateTechnicianLocation(
+      String technicianId, double lat, double lon, bool available) async {
+    return _decode(await http.patch(
+      Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
+      headers: _headers,
+      body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
+    ));
+  }
+
+  Future<Map<String, dynamic>> updateUserLocation(
+      String userId, double lat, double lon) async {
+    return _decode(await http.patch(
+      Uri.parse('$serverUrl/api/users/$userId/location'),
+      headers: _headers,
+      body: jsonEncode({'lat': lat, 'lon': lon}),
+    ));
+  }
+
+  Future<Map<String, dynamic>> updateAvailability(
+      String technicianId, bool available) async {
+    return _decode(await http.patch(
+      Uri.parse('$serverUrl/api/technicians/$technicianId/availability'),
+      headers: _headers,
+      body: jsonEncode({'available': available}),
+    ));
+  }
+
+  Future<dynamic> _decodeAny(http.Response res) async {
+    final dynamic body = res.body.isEmpty ? null : jsonDecode(res.body);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final message = body is Map && body['error'] != null
+          ? body['error'].toString()
+          : 'HTTP ${res.statusCode}';
+      throw Exception(message);
+    }
+    return body;
+  }
+
+  Future<Map<String, dynamic>> _decode(http.Response res) async {
+    final body = await _decodeAny(res);
+    return body is Map<String, dynamic>
+        ? body
+        : Map<String, dynamic>.from(body as Map);
   }
 }

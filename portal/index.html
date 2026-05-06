@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Technician Operations Portal</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">NT</span>
+        <div>
+          <strong>Nearest Technician</strong>
+          <span>Operations Portal</span>
+        </div>
+      </div>
+      <nav>
+        <a class="active" href="#overview">Overview</a>
+        <a href="#requests">Requests</a>
+        <a href="#technicians">Technicians</a>
+        <a href="#skills">Skills</a>
+      </nav>
+      <div class="system-card">
+        <span class="label">Push status</span>
+        <strong id="pushStatus">Checking</strong>
+      </div>
+    </aside>
+
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Live dispatch</p>
+          <h1>Service operations</h1>
+        </div>
+        <div class="toolbar">
+          <input id="apiBase" type="url" aria-label="API base URL" value="http://localhost:3000">
+          <button id="refreshBtn" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section id="overview" class="metrics-grid" aria-label="Overview metrics">
+        <article class="metric">
+          <span>Clients</span>
+          <strong id="totalClients">0</strong>
+        </article>
+        <article class="metric">
+          <span>Technicians</span>
+          <strong id="totalTechnicians">0</strong>
+        </article>
+        <article class="metric accent">
+          <span>Available</span>
+          <strong id="availableTechnicians">0</strong>
+        </article>
+        <article class="metric warning">
+          <span>Pending</span>
+          <strong id="pendingRequests">0</strong>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article id="requests" class="panel wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Queue</p>
+              <h2>Recent requests</h2>
+            </div>
+            <span id="lastUpdated" class="subtle">Never updated</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Technician</th>
+                  <th>Skill</th>
+                  <th>Status</th>
+                  <th>Distance</th>
+                </tr>
+              </thead>
+              <tbody id="requestsBody">
+                <tr><td colspan="5">Loading requests</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article id="skills" class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Demand</p>
+              <h2>Top skills</h2>
+            </div>
+          </div>
+          <div id="skillsList" class="bars"></div>
+        </article>
+
+        <article id="technicians" class="panel wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Field team</p>
+              <h2>Technician availability</h2>
+            </div>
+          </div>
+          <div id="techniciansList" class="tech-grid"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

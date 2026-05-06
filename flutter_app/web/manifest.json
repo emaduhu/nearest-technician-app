@@ -1,11 +1,11 @@
 {
-    "name": "nearest_technician_app",
-    "short_name": "nearest_technician_app",
+    "name": "Nearest Technician",
+    "short_name": "Technician",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F5F7F8",
+    "theme_color": "#0F766E",
+    "description": "Find nearby skilled technicians, request service, and track every job.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
