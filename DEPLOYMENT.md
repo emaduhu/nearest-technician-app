@@ -85,3 +85,44 @@ flutter build web --release --dart-define=SERVER_URL=https://your-api-domain.com
 
 Output:
 - `flutter_app/build/web`
+
+## Laravel API
+
+The Laravel API is in `laravel_api/` and keeps the same `/api/...` contract used by the existing Node API. The Node API in `server/` is still available; the app and portal now default to Laravel (`8000`) for new runs.
+
+Production PostgreSQL environment:
+
+```bash
+cd laravel_api
+cp .env.example .env
+php artisan key:generate
+```
+
+Set these values in `laravel_api/.env`:
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=nearest_technician
+DB_USERNAME=postgres
+DB_PASSWORD=your-password
+FCM_SERVER_KEY=
+```
+
+Install and start:
+
+```bash
+cd laravel_api
+composer install --no-dev --optimize-autoloader
+php artisan migrate --seed
+php artisan serve --host=0.0.0.0 --port=8000
+```
+
+Production Flutter builds should point at the deployed Laravel domain:
+
+```bash
+cd flutter_app
+flutter build appbundle --release --dart-define=SERVER_URL=https://your-laravel-api-domain.com
+flutter build web --release --dart-define=SERVER_URL=https://your-laravel-api-domain.com
+```
