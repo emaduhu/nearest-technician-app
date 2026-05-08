@@ -168,9 +168,6 @@ class TechnicianApiController extends Controller
 
         $query = Technician::query();
         $skill = strtolower(trim($data['skill'] ?? ''));
-        if ($skill !== '') {
-            $query->whereRaw('LOWER(skills::text) like ?', ['%'.$skill.'%']);
-        }
 
         if (array_key_exists('available', $data)) {
             $query->where('available', filter_var($data['available'], FILTER_VALIDATE_BOOLEAN));
@@ -187,6 +184,7 @@ class TechnicianApiController extends Controller
         $maxDistance = isset($data['maxDistanceKm']) ? (float) $data['maxDistanceKm'] : null;
 
         $technicians = $query->get()
+            ->filter(fn (Technician $row) => $skill === '' || $this->skillMatches($row, $skill))
             ->map(fn (Technician $row) => ['model' => $row, 'distance' => $this->distanceKm($lat, $lon, $row->latitude, $row->longitude)])
             ->filter(fn ($row) => $maxDistance === null || $row['distance'] === null || $row['distance'] <= $maxDistance)
             ->sortBy(fn ($row) => $row['distance'] ?? PHP_FLOAT_MAX)

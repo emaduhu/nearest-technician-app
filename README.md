@@ -4,13 +4,13 @@ Nearest Technician App - Final
 This package includes:
 - flutter_app/: Flutter client (uses Firebase for push). firebase_options.dart includes projectId 'nearest-technician-app' but still contains placeholders.
 - server/: Node.js backend (uses local MongoDB at mongodb://localhost:27017/technician_app)
-- laravel_api/: Laravel API backend using PostgreSQL. This is now the default API target for the app and portal.
+- laravel_api/: Laravel API backend using MySQL. This is now the default API target for the app and portal.
 
 Important: some sensitive credentials cannot be included for security reasons (API keys, service account JSON).
 You must perform a couple of final steps before running.
 
-1) Laravel API setup (PostgreSQL)
----------------------------------
+1) Laravel API setup (MySQL)
+----------------------------
 cd laravel_api
 cp .env.example .env
 composer install

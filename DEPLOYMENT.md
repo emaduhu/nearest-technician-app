@@ -90,7 +90,7 @@ Output:
 
 The Laravel API is in `laravel_api/` and keeps the same `/api/...` contract used by the existing Node API. The Node API in `server/` is still available; the app and portal now default to Laravel (`8000`) for new runs.
 
-Production PostgreSQL environment:
+Production MySQL environment:
 
 ```bash
 cd laravel_api
@@ -101,11 +101,11 @@ php artisan key:generate
 Set these values in `laravel_api/.env`:
 
 ```env
-DB_CONNECTION=pgsql
+DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
-DB_PORT=5432
+DB_PORT=3306
 DB_DATABASE=nearest_technician
-DB_USERNAME=postgres
+DB_USERNAME=your-db-user
 DB_PASSWORD=your-password
 FCM_SERVER_KEY=
 ```
