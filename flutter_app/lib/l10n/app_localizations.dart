@@ -40,6 +40,14 @@ class AppLocalizations {
   String get invalidCredentials => isSwahili
       ? 'Barua pepe au nenosiri si sahihi'
       : 'Email or password is incorrect';
+  String get forgotPassword =>
+      isSwahili ? 'Umesahau nenosiri?' : 'Forgot password?';
+  String get sendingPasswordReset => isSwahili
+      ? 'Inatuma kiungo cha kuweka upya nenosiri...'
+      : 'Sending password reset link...';
+  String get passwordResetSent => isSwahili
+      ? 'Ikiwa akaunti ipo, kiungo cha kuweka upya nenosiri kimetumwa.'
+      : 'If an account exists, a password reset link has been sent.';
   String get signIn => isSwahili ? 'Ingia' : 'Sign in';
   String get createNewAccount =>
       isSwahili ? 'Fungua akaunti mpya' : 'Create a new account';

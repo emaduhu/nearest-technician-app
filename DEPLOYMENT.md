@@ -107,6 +107,16 @@ DB_PORT=3306
 DB_DATABASE=nearest_technician
 DB_USERNAME=your-db-user
 DB_PASSWORD=your-password
+APP_URL=https://nt-api.vigourtech.net
+APP_FRONTEND_URL=https://nt.vigourtech.net
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=mail.nt.vigourtech.net
+MAIL_PORT=465
+MAIL_USERNAME=support@nt.vigourtech.net
+MAIL_PASSWORD=your-mailbox-password
+MAIL_FROM_ADDRESS=support@nt.vigourtech.net
+MAIL_FROM_NAME="${APP_NAME}"
 FCM_SERVER_KEY=
 ```
 
@@ -126,3 +136,12 @@ cd flutter_app
 flutter build appbundle --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 flutter build web --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 ```
+
+## Laravel Portal
+
+The Laravel app also serves the operations portal and password reset pages:
+
+- API domain: `https://nt-api.vigourtech.net`
+- Portal and password reset domain: `https://nt.vigourtech.net`
+
+Point both cPanel subdomains at the same Laravel deployment pattern, with public files in the subdomain document root and the application in the protected `laravel/` folder. The password reset email links use `APP_FRONTEND_URL`, so set it to the portal domain.

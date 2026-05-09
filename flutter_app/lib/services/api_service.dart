@@ -32,6 +32,11 @@ class ApiService {
         headers: _headers, body: jsonEncode(payload)));
   }
 
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return _decode(await http.post(Uri.parse('$serverUrl/api/forgot-password'),
+        headers: _headers, body: jsonEncode({'email': email})));
+  }
+
   Future<List<dynamic>> searchTechnicians({
     required String skill,
     required double lat,

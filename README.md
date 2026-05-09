@@ -19,6 +19,7 @@ php artisan migrate --seed
 php artisan serve --host=0.0.0.0 --port=8000
 
 The Flutter app and web portal default to https://nt-api.vigourtech.net.
+Laravel also serves a portal and password reset pages for https://nt.vigourtech.net when `APP_FRONTEND_URL` is set to that domain.
 
 2) Optional Node API setup (local MongoDB)
 -----------------------------------------

@@ -100,6 +100,35 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final l10n = AppLocalizations.of(context);
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _status = l10n.validEmail);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _status = l10n.sendingPasswordReset;
+    });
+
+    try {
+      await _api.forgotPassword(email);
+      if (mounted) {
+        setState(() => _status = l10n.passwordResetSent);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
   String _messageForError(Object error, AppLocalizations l10n) {
     if (_loginMode &&
         error is ApiException &&
@@ -290,6 +319,11 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ? l10n.createNewAccount
                                   : l10n.alreadyRegistered),
                             ),
+                            if (_loginMode)
+                              TextButton(
+                                onPressed: _loading ? null : _forgotPassword,
+                                child: Text(l10n.forgotPassword),
+                              ),
                           ],
                         ),
                       ),

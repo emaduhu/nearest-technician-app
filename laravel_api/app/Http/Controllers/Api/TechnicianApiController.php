@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -156,6 +157,36 @@ class TechnicianApiController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    public function forgotPassword(Request $request, PasswordResetService $passwordReset): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $passwordReset->sendResetLink($data['email']);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'If that email exists, a password reset link has been sent.',
+        ]);
+    }
+
+    public function resetPassword(Request $request, PasswordResetService $passwordReset): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        $passwordReset->reset($data['email'], $data['token'], $data['password']);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Password reset successfully.',
+        ]);
     }
 
     public function searchTechnicians(Request $request): JsonResponse
