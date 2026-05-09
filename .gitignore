@@ -1,4 +1,5 @@
 .idea/
 tools/composer.phar
+laravel_api.zip
 laravel_api/.env
 laravel_api/vendor/
