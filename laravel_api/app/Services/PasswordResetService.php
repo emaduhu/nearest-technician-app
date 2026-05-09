@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -36,7 +37,14 @@ class PasswordResetService
             'token' => $token,
         ]);
 
-        Mail::to($email)->send(new PasswordResetLinkMail($user->name, $url));
+        try {
+            Mail::to($email)->send(new PasswordResetLinkMail($user->name, $url));
+        } catch (\Throwable $exception) {
+            Log::warning('Password reset email could not be sent.', [
+                'email' => $email,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function reset(string $email, string $token, string $password): void
