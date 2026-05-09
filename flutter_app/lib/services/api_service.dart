@@ -4,6 +4,17 @@ import 'package:http/http.dart' as http;
 const serverUrl = String.fromEnvironment('SERVER_URL',
     defaultValue: 'https://nt-api.vigourtech.net');
 
+class ApiException implements Exception {
+  final String message;
+  final int statusCode;
+  final String? code;
+
+  const ApiException(this.message, this.statusCode, {this.code});
+
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   static const Map<String, String> _headers = {
     'Accept': 'application/json',
@@ -107,7 +118,11 @@ class ApiService {
           : body is Map && body['message'] != null
               ? body['message'].toString()
               : 'HTTP ${res.statusCode}';
-      throw Exception(message);
+      throw ApiException(
+        message,
+        res.statusCode,
+        code: body is Map ? body['code']?.toString() : null,
+      );
     }
     if (body == null && res.body.isNotEmpty) {
       throw Exception('Server returned an invalid response');

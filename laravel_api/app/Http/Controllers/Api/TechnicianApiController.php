@@ -137,7 +137,10 @@ class TechnicianApiController extends Controller
         $email = strtolower(trim($data['email']));
         $user = User::where('email', $email)->first();
         if (!$user || !Hash::check($data['password'], $user->password)) {
-            return response()->json(['error' => 'Invalid credentials'], 401);
+            return response()->json([
+                'error' => 'Incorrect email or password',
+                'code' => 'invalid_credentials',
+            ], 401);
         }
 
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;

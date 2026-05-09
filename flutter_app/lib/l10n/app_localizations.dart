@@ -37,6 +37,9 @@ class AppLocalizations {
       isSwahili ? 'Ujuzi, tenganisha kwa koma' : 'Skills, comma separated';
   String get email => isSwahili ? 'Barua pepe' : 'Email';
   String get password => isSwahili ? 'Nenosiri' : 'Password';
+  String get invalidCredentials => isSwahili
+      ? 'Barua pepe au nenosiri si sahihi'
+      : 'Email or password is incorrect';
   String get signIn => isSwahili ? 'Ingia' : 'Sign in';
   String get createNewAccount =>
       isSwahili ? 'Fungua akaunti mpya' : 'Create a new account';

@@ -91,13 +91,23 @@ class _RegisterPageState extends State<RegisterPage> {
       widget.onRegistered(session);
     } catch (e) {
       if (mounted) {
-        setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _status = _messageForError(e, l10n));
       }
     } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
+  }
+
+  String _messageForError(Object error, AppLocalizations l10n) {
+    if (_loginMode &&
+        error is ApiException &&
+        error.code == 'invalid_credentials') {
+      return l10n.invalidCredentials;
+    }
+
+    return error.toString().replaceFirst('Exception: ', '');
   }
 
   @override
