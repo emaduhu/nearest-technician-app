@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 const serverUrl = String.fromEnvironment('SERVER_URL',
-    defaultValue: 'https://nt-api.vigourtech.net');
+    defaultValue: 'https://nt.vigourtech.net');
 
 class ApiException implements Exception {
   final String message;
