@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 const serverUrl =
-    String.fromEnvironment('SERVER_URL', defaultValue: 'http://10.0.2.2:8000');
+    String.fromEnvironment('SERVER_URL', defaultValue: 'https://nt-api.vigourtech.net');
 
 class ApiService {
   static const Map<String, String> _headers = {

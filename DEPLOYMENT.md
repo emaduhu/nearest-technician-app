@@ -43,7 +43,7 @@ Build an Android App Bundle:
 
 ```bash
 cd flutter_app
-flutter build appbundle --release --dart-define=SERVER_URL=https://your-api-domain.com
+flutter build appbundle --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 ```
 
 Output:
@@ -63,7 +63,7 @@ Archive from macOS with Xcode or:
 
 ```bash
 cd flutter_app
-flutter build ipa --release --dart-define=SERVER_URL=https://your-api-domain.com
+flutter build ipa --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 ```
 
 Configure the final bundle identifier, team, signing certificate, and provisioning profile in Xcode.
@@ -80,7 +80,7 @@ Build the production web app:
 
 ```bash
 cd flutter_app
-flutter build web --release --dart-define=SERVER_URL=https://your-api-domain.com
+flutter build web --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 ```
 
 Output:
@@ -123,6 +123,6 @@ Production Flutter builds should point at the deployed Laravel domain:
 
 ```bash
 cd flutter_app
-flutter build appbundle --release --dart-define=SERVER_URL=https://your-laravel-api-domain.com
-flutter build web --release --dart-define=SERVER_URL=https://your-laravel-api-domain.com
+flutter build appbundle --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
+flutter build web --release --dart-define=SERVER_URL=https://nt-api.vigourtech.net
 ```
