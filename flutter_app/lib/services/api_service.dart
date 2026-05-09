@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const serverUrl =
-    String.fromEnvironment('SERVER_URL', defaultValue: 'https://nt-api.vigourtech.net');
+const serverUrl = String.fromEnvironment('SERVER_URL',
+    defaultValue: 'https://nt-api.vigourtech.net');
 
 class ApiService {
   static const Map<String, String> _headers = {
+    'Accept': 'application/json',
     'Content-Type': 'application/json'
   };
 
@@ -99,14 +100,28 @@ class ApiService {
   }
 
   Future<dynamic> _decodeAny(http.Response res) async {
-    final dynamic body = res.body.isEmpty ? null : jsonDecode(res.body);
+    final dynamic body = _tryDecode(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       final message = body is Map && body['error'] != null
           ? body['error'].toString()
-          : 'HTTP ${res.statusCode}';
+          : body is Map && body['message'] != null
+              ? body['message'].toString()
+              : 'HTTP ${res.statusCode}';
       throw Exception(message);
     }
+    if (body == null && res.body.isNotEmpty) {
+      throw Exception('Server returned an invalid response');
+    }
     return body;
+  }
+
+  dynamic _tryDecode(String body) {
+    if (body.isEmpty) return null;
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>> _decode(http.Response res) async {
