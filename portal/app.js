@@ -24,9 +24,10 @@ async function loadOverview() {
   els.refreshBtn.disabled = true;
   els.refreshBtn.textContent = 'Refreshing';
   try {
-    const res = await fetch(apiUrl());
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    state.overview = await res.json();
+    const res = await fetch(apiUrl(), {
+      headers: { Accept: 'application/json' },
+    });
+    state.overview = await decodeResponse(res);
     render();
   } catch (err) {
     els.requestsBody.innerHTML = `<tr><td colspan="5">Unable to load portal data: ${err.message}</td></tr>`;
@@ -35,6 +36,29 @@ async function loadOverview() {
     els.refreshBtn.disabled = false;
     els.refreshBtn.textContent = 'Refresh';
   }
+}
+
+async function decodeResponse(res) {
+  const text = await res.text();
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch (_) {
+      body = null;
+    }
+  }
+
+  if (!res.ok) {
+    const message = body?.error || body?.message || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+
+  if (!body) {
+    throw new Error('Server returned an invalid response');
+  }
+
+  return body;
 }
 
 function render() {

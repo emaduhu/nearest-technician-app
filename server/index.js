@@ -272,7 +272,10 @@ app.post('/api/login', async (req, res) => {
     const { email, password, token } = req.body;
     const user = await User.findOne({ email: String(email || '').toLowerCase().trim() });
     if (!user || !(await bcrypt.compare(password || '', user.passwordHash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({
+        error: 'Incorrect email or password',
+        code: 'invalid_credentials',
+      });
     }
     if (token) {
       user.deviceToken = token;
