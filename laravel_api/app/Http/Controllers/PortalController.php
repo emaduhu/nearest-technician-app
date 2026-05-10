@@ -68,6 +68,7 @@ class PortalController extends Controller
                 'clients' => User::where('role', 'client')->count(),
                 'technicians' => $totalTechnicians,
                 'available' => $availableTechnicians,
+                'unavailable' => max($totalTechnicians - $availableTechnicians, 0),
                 'pending' => ServiceRequest::where('status', 'pending')->count(),
                 'completed' => ServiceRequest::where('status', 'completed')->count(),
             ],
@@ -87,6 +88,20 @@ class PortalController extends Controller
                 ->limit(8)
                 ->get(),
         ]);
+    }
+
+    public function updateTechnicianAvailability(Request $request, Technician $technician): RedirectResponse
+    {
+        $data = $request->validate([
+            'available' => ['required', 'boolean'],
+        ]);
+
+        $technician->update([
+            'available' => (bool) $data['available'],
+            'last_seen_at' => now(),
+        ]);
+
+        return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
     }
 
     public function users(): View
