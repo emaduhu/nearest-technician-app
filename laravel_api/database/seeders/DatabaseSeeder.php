@@ -10,6 +10,16 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        User::firstOrCreate(
+            ['email' => env('PORTAL_ADMIN_EMAIL', 'admin@nt.vigourtech.net')],
+            [
+                'role' => 'admin',
+                'name' => env('PORTAL_ADMIN_NAME', 'Portal Administrator'),
+                'phone' => env('PORTAL_ADMIN_PHONE', '+255700000000'),
+                'password' => env('PORTAL_ADMIN_PASSWORD', 'password'),
+            ],
+        );
+
         $technicians = [
             [
                 'name' => 'Asha Msuya',

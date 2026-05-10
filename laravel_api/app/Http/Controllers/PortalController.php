@@ -44,6 +44,16 @@ class PortalController extends Controller
                 ->onlyInput('email');
         }
 
+        if (! in_array(Auth::user()?->role, ['admin', 'dispatcher'], true)) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()
+                ->withErrors(['email' => 'This account does not have portal access.'])
+                ->onlyInput('email');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->route('dispatch');
@@ -60,6 +70,8 @@ class PortalController extends Controller
 
     public function dispatch(): View
     {
+        $this->ensurePortalAccess();
+
         $totalTechnicians = Technician::count();
         $availableTechnicians = Technician::where('available', true)->count();
 
@@ -92,6 +104,8 @@ class PortalController extends Controller
 
     public function updateTechnicianAvailability(Request $request, Technician $technician): RedirectResponse
     {
+        $this->ensurePortalAccess();
+
         $data = $request->validate([
             'available' => ['required', 'boolean'],
         ]);
@@ -106,6 +120,8 @@ class PortalController extends Controller
 
     public function users(): View
     {
+        $this->ensureAdmin();
+
         return view('portal.users', [
             'users' => User::with('technician')
                 ->orderBy('role')
@@ -117,6 +133,8 @@ class PortalController extends Controller
 
     public function storeUser(Request $request): RedirectResponse
     {
+        $this->ensureAdmin();
+
         $data = $request->validate([
             'role' => ['required', Rule::in($this->roles())],
             'name' => ['required', 'string', 'max:255'],
@@ -140,6 +158,8 @@ class PortalController extends Controller
 
     public function updateUser(Request $request, User $user): RedirectResponse
     {
+        $this->ensureAdmin();
+
         $data = $request->validate([
             'role' => ['required', Rule::in($this->roles())],
             'name' => ['required', 'string', 'max:255'],
@@ -167,6 +187,8 @@ class PortalController extends Controller
 
     public function destroyUser(Request $request, User $user): RedirectResponse
     {
+        $this->ensureAdmin();
+
         if ((int) $request->user()->id === (int) $user->id) {
             return redirect()->route('users.index')->withErrors(['user' => 'You cannot delete your own account while signed in.']);
         }
@@ -203,6 +225,16 @@ class PortalController extends Controller
     private function roles(): array
     {
         return ['admin', 'dispatcher', 'client', 'technician'];
+    }
+
+    private function ensurePortalAccess(): void
+    {
+        abort_unless(in_array(Auth::user()?->role, ['admin', 'dispatcher'], true), 403);
+    }
+
+    private function ensureAdmin(): void
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
     }
 
     private function syncTechnicianProfile(User $user, ?string $plainPassword = null): void

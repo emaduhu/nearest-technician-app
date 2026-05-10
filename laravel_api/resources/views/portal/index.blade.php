@@ -59,7 +59,9 @@
         </div>
         <nav aria-label="Portal navigation">
             <a class="active" href="{{ route('dispatch') }}">Dispatch</a>
-            <a href="{{ route('users.index') }}">Users</a>
+            @if (auth()->user()?->role === 'admin')
+                <a href="{{ route('users.index') }}">Users</a>
+            @endif
             <form method="post" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit">Logout</button>
