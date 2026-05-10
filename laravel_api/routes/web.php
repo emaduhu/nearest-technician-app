@@ -10,6 +10,8 @@ Route::post('/logout', [PortalController::class, 'logout'])->name('logout');
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/dispatch', [PortalController::class, 'dispatch'])->name('dispatch');
+    Route::get('/technician', [PortalController::class, 'technicianDashboard'])->name('technician.dashboard');
+    Route::patch('/technician/availability', [PortalController::class, 'updateOwnAvailability'])->name('technician.availability');
     Route::get('/users', [PortalController::class, 'users'])->name('users.index');
     Route::post('/users', [PortalController::class, 'storeUser'])->name('users.store');
     Route::put('/users/{user}', [PortalController::class, 'updateUser'])->name('users.update');

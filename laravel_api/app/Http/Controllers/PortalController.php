@@ -18,13 +18,13 @@ class PortalController extends Controller
 {
     public function home(): RedirectResponse
     {
-        return redirect()->route(Auth::check() ? 'dispatch' : 'login');
+        return redirect()->route(Auth::check() ? $this->landingRouteFor(Auth::user()) : 'login');
     }
 
     public function loginForm(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dispatch');
+            return redirect()->route($this->landingRouteFor(Auth::user()));
         }
 
         return view('auth.login');
@@ -44,7 +44,7 @@ class PortalController extends Controller
                 ->onlyInput('email');
         }
 
-        if (! in_array(Auth::user()?->role, ['admin', 'dispatcher'], true)) {
+        if (! in_array(Auth::user()?->role, ['admin', 'dispatcher', 'technician'], true)) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -56,7 +56,7 @@ class PortalController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->route('dispatch');
+        return redirect()->route($this->landingRouteFor(Auth::user()));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -116,6 +116,43 @@ class PortalController extends Controller
         ]);
 
         return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
+    }
+
+    public function technicianDashboard(Request $request): View
+    {
+        $technician = $this->currentTechnician();
+        abort_unless($technician, 403);
+
+        return view('portal.technician', [
+            'technician' => $technician,
+            'stats' => [
+                'pending' => ServiceRequest::where('technician_id', $technician->id)->where('status', 'pending')->count(),
+                'accepted' => ServiceRequest::where('technician_id', $technician->id)->where('status', 'accepted')->count(),
+                'completed' => ServiceRequest::where('technician_id', $technician->id)->where('status', 'completed')->count(),
+            ],
+            'requests' => ServiceRequest::with('client')
+                ->where('technician_id', $technician->id)
+                ->latest()
+                ->limit(20)
+                ->get(),
+        ]);
+    }
+
+    public function updateOwnAvailability(Request $request): RedirectResponse
+    {
+        $technician = $this->currentTechnician();
+        abort_unless($technician, 403);
+
+        $data = $request->validate([
+            'available' => ['required', 'boolean'],
+        ]);
+
+        $technician->update([
+            'available' => (bool) $data['available'],
+            'last_seen_at' => now(),
+        ]);
+
+        return redirect()->route('technician.dashboard')->with('status', 'Availability updated.');
     }
 
     public function users(): View
@@ -235,6 +272,23 @@ class PortalController extends Controller
     private function ensureAdmin(): void
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
+    }
+
+    private function landingRouteFor(?User $user): string
+    {
+        return $user?->role === 'technician' ? 'technician.dashboard' : 'dispatch';
+    }
+
+    private function currentTechnician(): ?Technician
+    {
+        $user = Auth::user();
+        if (! $user || $user->role !== 'technician') {
+            return null;
+        }
+
+        return Technician::where('user_id', $user->id)
+            ->orWhere('email', $user->email)
+            ->first();
     }
 
     private function syncTechnicianProfile(User $user, ?string $plainPassword = null): void
