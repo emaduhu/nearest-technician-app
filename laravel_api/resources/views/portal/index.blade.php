@@ -12,6 +12,10 @@
         header { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 22px; }
         h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); }
         h2 { margin: 0; font-size: 18px; }
+        nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        nav a, nav button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+        nav a.active { background: var(--brand); color: white; border-color: var(--brand); }
+        nav form { margin: 0; }
         .eyebrow { margin: 0 0 4px; color: var(--brand); font-weight: 800; text-transform: uppercase; font-size: 12px; letter-spacing: .08em; }
         .metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         .metric, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
@@ -40,7 +44,15 @@
             <p class="eyebrow">Live dispatch</p>
             <h1>Nearest Technician Portal</h1>
         </div>
-        <span class="badge">Updated {{ now()->format('M j, Y H:i') }}</span>
+        <nav aria-label="Portal navigation">
+            <a class="active" href="{{ route('dispatch') }}">Dispatch</a>
+            <a href="{{ route('users.index') }}">Users</a>
+            <form method="post" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit">Logout</button>
+            </form>
+            <span class="badge">Updated {{ now()->format('M j, Y H:i') }}</span>
+        </nav>
     </header>
 
     <section class="metrics">
