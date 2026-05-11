@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_http_client.dart';
 
 const serverUrl = String.fromEnvironment('SERVER_URL',
     defaultValue: 'https://nt.vigourtech.net');
@@ -16,25 +17,34 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  static Future<http.Client>? _clientFuture;
+
   static const Map<String, String> _headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json'
   };
 
+  Future<http.Client> get _client => _clientFuture ??= createApiHttpClient();
+
   Future<Map<String, dynamic>> registerDevice(
       Map<String, dynamic> payload) async {
-    return _decode(await http.post(Uri.parse('$serverUrl/api/register'),
+    final client = await _client;
+    return _decode(await client.post(Uri.parse('$serverUrl/api/register'),
         headers: _headers, body: jsonEncode(payload)));
   }
 
   Future<Map<String, dynamic>> login(Map<String, dynamic> payload) async {
-    return _decode(await http.post(Uri.parse('$serverUrl/api/login'),
+    final client = await _client;
+    return _decode(await client.post(Uri.parse('$serverUrl/api/login'),
         headers: _headers, body: jsonEncode(payload)));
   }
 
   Future<Map<String, dynamic>> forgotPassword(String email) async {
-    return _decode(await http.post(Uri.parse('$serverUrl/api/forgot-password'),
-        headers: _headers, body: jsonEncode({'email': email})));
+    final client = await _client;
+    return _decode(await client.post(
+        Uri.parse('$serverUrl/api/forgot-password'),
+        headers: _headers,
+        body: jsonEncode({'email': email})));
   }
 
   Future<List<dynamic>> searchTechnicians({
@@ -54,19 +64,22 @@ class ApiService {
       'available': '$available',
       'minRating': '$minRating',
     });
-    final body = await _decodeAny(await http.get(uri));
+    final client = await _client;
+    final body = await _decodeAny(await client.get(uri));
     return body is List ? body : [];
   }
 
   Future<Map<String, dynamic>> requestTechnician(
       Map<String, dynamic> payload) async {
-    return _decode(await http.post(Uri.parse('$serverUrl/api/requests'),
+    final client = await _client;
+    return _decode(await client.post(Uri.parse('$serverUrl/api/requests'),
         headers: _headers, body: jsonEncode(payload)));
   }
 
   Future<Map<String, dynamic>> respondToRequest(
       String requestId, Map<String, dynamic> payload) async {
-    return _decode(await http.patch(
+    final client = await _client;
+    return _decode(await client.patch(
         Uri.parse('$serverUrl/api/requests/$requestId/respond'),
         headers: _headers,
         body: jsonEncode(payload)));
@@ -82,7 +95,8 @@ class ApiService {
       params['technicianId'] = technicianId;
     }
     if (status != null && status.isNotEmpty) params['status'] = status;
-    final body = await _decodeAny(await http.get(
+    final client = await _client;
+    final body = await _decodeAny(await client.get(
         Uri.parse('$serverUrl/api/requests/history')
             .replace(queryParameters: params)));
     return body is List ? body : [];
@@ -90,7 +104,8 @@ class ApiService {
 
   Future<Map<String, dynamic>> updateTechnicianLocation(
       String technicianId, double lat, double lon, bool available) async {
-    return _decode(await http.patch(
+    final client = await _client;
+    return _decode(await client.patch(
       Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
       headers: _headers,
       body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
@@ -99,7 +114,8 @@ class ApiService {
 
   Future<Map<String, dynamic>> updateUserLocation(
       String userId, double lat, double lon) async {
-    return _decode(await http.patch(
+    final client = await _client;
+    return _decode(await client.patch(
       Uri.parse('$serverUrl/api/users/$userId/location'),
       headers: _headers,
       body: jsonEncode({'lat': lat, 'lon': lon}),
@@ -108,7 +124,8 @@ class ApiService {
 
   Future<Map<String, dynamic>> updateAvailability(
       String technicianId, bool available) async {
-    return _decode(await http.patch(
+    final client = await _client;
+    return _decode(await client.patch(
       Uri.parse('$serverUrl/api/technicians/$technicianId/availability'),
       headers: _headers,
       body: jsonEncode({'available': available}),
