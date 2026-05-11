@@ -13,7 +13,7 @@ class UpdateCheckService {
               messages: languageCode == 'sw'
                   ? SwahiliUpgraderMessages()
                   : UpgraderMessages(code: 'en'),
-              durationUntilAlertAgain: const Duration(days: 1),
+              durationUntilAlertAgain: Duration.zero,
             ));
   }
 }
@@ -33,11 +33,11 @@ class SwahiliUpgraderMessages extends UpgraderMessages {
       case UpgraderMessage.buttonTitleUpdate:
         return 'Sasisha sasa';
       case UpgraderMessage.prompt:
-        return 'Sasisha programu ili kupata maboresho na marekebisho ya hivi karibuni.';
+        return 'Ni lazima usasishe programu ili kuendelea kutumia huduma.';
       case UpgraderMessage.releaseNotes:
         return 'Maelezo ya toleo';
       case UpgraderMessage.title:
-        return 'Sasisho linapatikana';
+        return 'Sasisho linahitajika';
     }
   }
 }

@@ -102,7 +102,11 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return UpgradeAlert(
           upgrader: UpdateCheckService.upgraderFor(_locale),
+          barrierDismissible: false,
           dialogStyle: UpgradeDialogStyle.material,
+          shouldPopScope: () => false,
+          showIgnore: false,
+          showLater: false,
           showReleaseNotes: true,
           child: child ?? const SizedBox.shrink(),
         );
