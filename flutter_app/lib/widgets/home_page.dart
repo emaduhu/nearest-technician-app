@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../l10n/app_localizations.dart';
@@ -31,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _descriptionCtrl = TextEditingController();
   Timer? _debounce;
   Timer? _historyTimer;
+  Timer? _trackingTimer;
   StreamSubscription<Position>? _locationSub;
 
   String _status = '';
@@ -50,6 +52,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool get _isTechnician => _user['role'] == 'technician';
+  bool get _hasAcceptedRequest =>
+      _history.any((item) => item is Map && item['status'] == 'accepted');
 
   @override
   void initState() {
@@ -57,16 +61,24 @@ class _HomePageState extends State<HomePage> {
     _initializeForegroundUpdates();
     _loadHistory();
     _startLiveLocation();
+    _trackingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!_isTechnician && _hasAcceptedRequest) {
+        _loadHistory();
+      }
+    });
   }
 
   Future<void> _initializeForegroundUpdates() async {
     await _fcm.init((data) {
       if (!mounted) return;
       final type = data['type']?.toString() ?? '';
-      if (type == 'request_response' || type == 'tech_request') {
+      if (type == 'request_response' ||
+          type == 'tech_request' ||
+          type == 'service_request' ||
+          type == 'technician_response') {
         final l10n = AppLocalizations.of(context);
         setState(() {
-          _status = type == 'request_response'
+          _status = type == 'request_response' || type == 'technician_response'
               ? '${l10n.requestUpdated}: ${l10n.statusLabel(data['status']?.toString() ?? l10n.newStatus)}'
               : l10n.newRequestReceived;
         });
@@ -309,6 +321,8 @@ class _HomePageState extends State<HomePage> {
               child: LinearProgressIndicator()),
         if (_status.isNotEmpty) _InlineStatus(message: _status),
         const SizedBox(height: 10),
+        _trackingSection(),
+        const SizedBox(height: 10),
         _SectionTitle(
           title: l10n.matchingTechnicians,
           subtitle: _results.isEmpty
@@ -458,6 +472,138 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _trackingSection() {
+    final l10n = AppLocalizations.of(context);
+    final accepted = _history
+        .where((item) => item is Map && item['status'] == 'accepted')
+        .cast<Map>()
+        .toList();
+
+    if (_isTechnician || accepted.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(
+          title: l10n.technicianTracking,
+          subtitle: l10n.technicianTrackingSubtitle,
+        ),
+        ...accepted
+            .map((item) => _trackingCard(Map<String, dynamic>.from(item))),
+      ],
+    );
+  }
+
+  Widget _trackingCard(Map<String, dynamic> request) {
+    final l10n = AppLocalizations.of(context);
+    final technician = request['technician'];
+    final techMap =
+        technician is Map ? Map<String, dynamic>.from(technician) : {};
+    final location = techMap['location'];
+    final techLocation = location is Map
+        ? Map<String, dynamic>.from(location)
+        : <String, dynamic>{};
+    final clientLocation = request['clientLocation'];
+    final clientMap = clientLocation is Map
+        ? Map<String, dynamic>.from(clientLocation)
+        : <String, dynamic>{};
+    final distance = _distanceKm(
+      _toDouble(clientMap['latitude']),
+      _toDouble(clientMap['longitude']),
+      _toDouble(techLocation['latitude']),
+      _toDouble(techLocation['longitude']),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const _StatusIcon(icon: Icons.near_me, status: 'accepted'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        techMap['name']?.toString() ?? l10n.technician,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        distance == null
+                            ? l10n.waitingForTechnicianLocation
+                            : l10n.technicianDistance(distance),
+                        style: const TextStyle(color: Color(0xFF697781)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _LocationChip(
+                  icon: Icons.person_pin_circle_outlined,
+                  label: l10n.clientLocation,
+                  value: _formatLocation(clientMap),
+                ),
+                _LocationChip(
+                  icon: Icons.engineering_outlined,
+                  label: l10n.technicianLocation,
+                  value: _formatLocation(techLocation),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double? _toDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  double? _distanceKm(double? lat1, double? lon1, double? lat2, double? lon2) {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+      return null;
+    }
+
+    final deltaLat = _toRad(lat2 - lat1);
+    final deltaLon = _toRad(lon2 - lon1);
+    final a = math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(_toRad(lat1)) *
+            math.cos(_toRad(lat2)) *
+            math.sin(deltaLon / 2) *
+            math.sin(deltaLon / 2);
+
+    return 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double _toRad(double value) => value * math.pi / 180;
+
+  String _formatLocation(Map<String, dynamic> location) {
+    final lat = _toDouble(location['latitude']);
+    final lon = _toDouble(location['longitude']);
+    if (lat == null || lon == null) {
+      return AppLocalizations.of(context).locationPending;
+    }
+
+    return '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
+  }
+
   Widget _requestCard(Map<String, dynamic> request, {bool actions = false}) {
     final l10n = AppLocalizations.of(context);
     final client = request['client'];
@@ -538,6 +684,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _debounce?.cancel();
     _historyTimer?.cancel();
+    _trackingTimer?.cancel();
     _locationSub?.cancel();
     _searchCtrl.dispose();
     _descriptionCtrl.dispose();
@@ -790,6 +937,48 @@ class _StatusIcon extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: color, size: 21),
+    );
+  }
+}
+
+class _LocationChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _LocationChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7F8),
+        border: Border.all(color: const Color(0xFFDCE4E8)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF697781)),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF697781),
+                      fontWeight: FontWeight.w700)),
+              Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

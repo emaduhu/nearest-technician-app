@@ -333,7 +333,12 @@ class TechnicianApiController extends Controller
         $pushed = $this->push->send($technician->device_token, [
             'title' => 'New service request',
             'body' => "{$client->name} requested {$serviceRequest->skill}",
-        ], ['requestId' => $serviceRequest->id, 'type' => 'service_request', 'clientId' => $client->id]);
+        ], [
+            'requestId' => $serviceRequest->id,
+            'type' => 'tech_request',
+            'clientId' => $client->id,
+            'skill' => $serviceRequest->skill,
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -366,7 +371,7 @@ class TechnicianApiController extends Controller
         $pushed = $this->push->send($serviceRequest->client?->device_token, [
             'title' => 'Technician response',
             'body' => "{$serviceRequest->technician->name} {$status} your request",
-        ], ['requestId' => $serviceRequest->id, 'type' => 'technician_response', 'status' => $status]);
+        ], ['requestId' => $serviceRequest->id, 'type' => 'request_response', 'status' => $status]);
 
         return response()->json([
             'ok' => true,

@@ -126,6 +126,22 @@ class AppLocalizations {
       isSwahili ? 'Hakuna matokeo ya utafutaji' : 'No active search results';
   String techniciansFound(int count) =>
       isSwahili ? 'Mafundi $count wamepatikana' : '$count technicians found';
+  String get technicianTracking =>
+      isSwahili ? 'Ufuatiliaji wa fundi' : 'Technician tracking';
+  String get technicianTrackingSubtitle => isSwahili
+      ? 'Eneo la fundi husasishwa baada ya ombi kukubaliwa.'
+      : 'Technician location updates after a request is accepted.';
+  String technicianDistance(double distance) => isSwahili
+      ? 'Fundi yuko umbali wa ${distance.toStringAsFixed(2)} km'
+      : 'Technician is ${distance.toStringAsFixed(2)} km away';
+  String get waitingForTechnicianLocation => isSwahili
+      ? 'Inasubiri eneo la fundi...'
+      : 'Waiting for technician location...';
+  String get clientLocation => isSwahili ? 'Eneo la mteja' : 'Client location';
+  String get technicianLocation =>
+      isSwahili ? 'Eneo la fundi' : 'Technician location';
+  String get locationPending =>
+      isSwahili ? 'Eneo halijapatikana' : 'Location pending';
   String get technicianDashboard =>
       isSwahili ? 'Dashibodi ya fundi' : 'Technician dashboard';
   String get technicianDashboardTitle =>
