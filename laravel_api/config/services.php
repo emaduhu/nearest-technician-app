@@ -39,4 +39,12 @@ return [
         'server_key' => env('FCM_SERVER_KEY'),
     ],
 
+    'clickpesa' => [
+        'base_url' => env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com/third-parties'),
+        'client_id' => env('CLICKPESA_CLIENT_ID'),
+        'api_key' => env('CLICKPESA_API_KEY'),
+        'currency' => env('CLICKPESA_CURRENCY', 'TZS'),
+        'technician_registration_fee' => (int) env('CLICKPESA_TECHNICIAN_REGISTRATION_FEE', 5000),
+    ],
+
 ];

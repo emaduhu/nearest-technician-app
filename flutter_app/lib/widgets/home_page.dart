@@ -41,6 +41,7 @@ class _HomePageState extends State<HomePage> {
   bool _onlyAvailable = true;
   double _maxDistanceKm = 25;
   double _minRating = 0;
+  Map<String, dynamic>? _registrationPayment;
   List<dynamic> _results = [];
   List<dynamic> _history = [];
 
@@ -58,6 +59,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _registrationPayment = _technician?['registrationPayment'] is Map
+        ? Map<String, dynamic>.from(_technician!['registrationPayment'] as Map)
+        : null;
     _initializeForegroundUpdates();
     _loadHistory();
     _startLiveLocation();
@@ -232,6 +236,28 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _refreshRegistrationPayment() async {
+    if (_technician == null) return;
+    final l10n = AppLocalizations.of(context);
+
+    try {
+      final response =
+          await _api.refreshRegistrationPayment(_technician!['id']);
+      final payment = response['registrationPayment'];
+      if (mounted && payment is Map) {
+        setState(() {
+          _registrationPayment = Map<String, dynamic>.from(payment);
+          _status = l10n.registrationPaymentStatus(
+              _registrationPayment?['status']?.toString() ?? '');
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
   Widget _clientDashboard() {
     final l10n = AppLocalizations.of(context);
     return ListView(
@@ -377,6 +403,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+        if (_registrationPayment != null) _registrationPaymentCard(),
         if (_status.isNotEmpty) _InlineStatus(message: _status),
         const SizedBox(height: 12),
         _SectionTitle(
@@ -391,6 +418,55 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 12),
         _historySection(),
       ],
+    );
+  }
+
+  Widget _registrationPaymentCard() {
+    final l10n = AppLocalizations.of(context);
+    final payment = _registrationPayment ?? {};
+    final status = payment['status']?.toString() ?? '';
+    final paid = status == 'success' || status == 'settled';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(
+              paid ? Icons.verified_outlined : Icons.payments_outlined,
+              color: paid ? const Color(0xFF0F766E) : const Color(0xFFB45309),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.registrationFeeTitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    l10n.registrationFeeLine(
+                      payment['amount'] ?? 5000,
+                      payment['currency'] ?? 'TZS',
+                      status,
+                    ),
+                    style: const TextStyle(color: Color(0xFF697781)),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.refreshPaymentStatus,
+              onPressed: _refreshRegistrationPayment,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

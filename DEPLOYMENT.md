@@ -118,7 +118,13 @@ MAIL_PASSWORD=your-mailbox-password
 MAIL_FROM_ADDRESS=support@nt.vigourtech.net
 MAIL_FROM_NAME="${APP_NAME}"
 FCM_SERVER_KEY=
+CLICKPESA_CLIENT_ID=your-clickpesa-client-id
+CLICKPESA_API_KEY=your-clickpesa-api-key
+CLICKPESA_CURRENCY=TZS
+CLICKPESA_TECHNICIAN_REGISTRATION_FEE=5000
 ```
+
+Technician registration triggers a ClickPesa USSD push for the configured registration fee. The technician phone number must be a mobile-money number; local numbers such as `0712345678` are normalized to `255712345678` before sending to ClickPesa.
 
 Install and start:
 

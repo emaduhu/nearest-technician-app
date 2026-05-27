@@ -132,6 +132,16 @@ class ApiService {
     ));
   }
 
+  Future<Map<String, dynamic>> refreshRegistrationPayment(
+      String technicianId) async {
+    final client = await _client;
+    return _decode(await client.get(
+      Uri.parse(
+          '$serverUrl/api/technicians/$technicianId/registration-payment'),
+      headers: _headers,
+    ));
+  }
+
   Future<dynamic> _decodeAny(http.Response res) async {
     final dynamic body = _tryDecode(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {

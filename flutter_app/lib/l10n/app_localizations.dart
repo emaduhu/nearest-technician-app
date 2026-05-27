@@ -158,6 +158,33 @@ class AppLocalizations {
       : 'Live location updates while this screen is open';
   String get refreshRequests =>
       isSwahili ? 'Sasisha maombi' : 'Refresh requests';
+  String get registrationFeeTitle =>
+      isSwahili ? 'Ada ya usajili' : 'Registration fee';
+  String get refreshPaymentStatus =>
+      isSwahili ? 'Sasisha hali ya malipo' : 'Refresh payment status';
+  String registrationFeeLine(Object amount, Object currency, String status) =>
+      isSwahili
+          ? '$currency $amount | ${registrationPaymentStatus(status)}'
+          : '$currency $amount | ${registrationPaymentStatus(status)}';
+  String registrationPaymentStatus(String status) {
+    switch (status) {
+      case 'success':
+      case 'settled':
+        return isSwahili ? 'imelipwa' : 'paid';
+      case 'processing':
+      case 'pending':
+        return isSwahili
+            ? 'thibitisha ombi la malipo kwenye simu yako'
+            : 'approve the payment prompt on your phone';
+      case 'not_configured':
+        return isSwahili ? 'haijasanidiwa' : 'not configured';
+      case 'request_failed':
+        return isSwahili ? 'ombi halikufaulu' : 'request failed';
+      default:
+        return status.isEmpty ? (isSwahili ? 'inasubiri' : 'pending') : status;
+    }
+  }
+
   String get newRequests => isSwahili ? 'Maombi mapya' : 'New requests';
   String get noPendingWork =>
       isSwahili ? 'Hakuna kazi inayosubiri' : 'No pending work';

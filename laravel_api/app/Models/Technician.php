@@ -20,6 +20,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'longitude',
     'available',
     'rating',
+    'registration_fee_amount',
+    'registration_fee_currency',
+    'registration_payment_status',
+    'registration_payment_order_reference',
+    'registration_payment_id',
+    'registration_payment_response',
+    'registration_payment_requested_at',
     'last_seen_at',
 ])]
 class Technician extends Model
@@ -32,6 +39,9 @@ class Technician extends Model
             'longitude' => 'float',
             'available' => 'boolean',
             'rating' => 'float',
+            'registration_fee_amount' => 'integer',
+            'registration_payment_response' => 'array',
+            'registration_payment_requested_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'password' => 'hashed',
         ];

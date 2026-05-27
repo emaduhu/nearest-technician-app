@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
+use App\Services\ClickPesaPaymentService;
 use App\Services\PasswordResetService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -13,11 +14,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class TechnicianApiController extends Controller
 {
-    public function __construct(private readonly PushNotificationService $push)
+    public function __construct(
+        private readonly PushNotificationService $push,
+        private readonly ClickPesaPaymentService $payments,
+    )
     {
     }
 
@@ -70,7 +76,7 @@ class TechnicianApiController extends Controller
         $data = $request->validate([
             'role' => ['required', Rule::in(['client', 'technician'])],
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:80'],
+            'phone' => ['required_if:role,technician', 'nullable', 'string', 'max:80'],
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string', 'min:6'],
             'token' => ['nullable', 'string'],
@@ -120,10 +126,47 @@ class TechnicianApiController extends Controller
                     'last_seen_at' => now(),
                 ],
             );
-            $payload['technician'] = $this->technicianDto($technician);
+            $this->requestTechnicianRegistrationPayment($technician);
+
+            $payload['technician'] = $this->technicianDto($technician->fresh());
+            $payload['registrationPayment'] = $this->registrationPaymentDto($technician->fresh());
         }
 
         return response()->json($payload, 201);
+    }
+
+    public function registrationPaymentStatus(Technician $technician): JsonResponse
+    {
+        if (blank($technician->registration_payment_order_reference)) {
+            return response()->json([
+                'ok' => true,
+                'registrationPayment' => $this->registrationPaymentDto($technician),
+            ]);
+        }
+
+        try {
+            $status = $this->payments->paymentStatus($technician->registration_payment_order_reference);
+            $latest = is_array($status) && array_is_list($status) ? ($status[0] ?? []) : $status;
+
+            if (is_array($latest) && filled($latest['status'] ?? null)) {
+                $technician->update([
+                    'registration_payment_status' => strtolower((string) $latest['status']),
+                    'registration_payment_id' => $latest['id'] ?? $technician->registration_payment_id,
+                    'registration_payment_response' => $status,
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Unable to refresh technician registration payment status.', [
+                'technician_id' => $technician->id,
+                'order_reference' => $technician->registration_payment_order_reference,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'registrationPayment' => $this->registrationPaymentDto($technician->fresh()),
+        ]);
     }
 
     public function login(Request $request): JsonResponse
@@ -493,7 +536,75 @@ class TechnicianApiController extends Controller
             'rating' => (float) $technician->rating,
             'location' => ['latitude' => $technician->latitude, 'longitude' => $technician->longitude],
             'distance' => $distance === null ? null : round($distance, 2),
+            'registrationPayment' => $this->registrationPaymentDto($technician),
             'lastSeenAt' => $this->dateString($technician->last_seen_at),
+        ];
+    }
+
+    private function requestTechnicianRegistrationPayment(Technician $technician): void
+    {
+        if ($this->registrationPaymentIsActive($technician->registration_payment_status)) {
+            return;
+        }
+
+        if (! $this->payments->configured()) {
+            $technician->update([
+                'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
+                'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+                'registration_payment_status' => 'not_configured',
+            ]);
+
+            return;
+        }
+
+        $orderReference = $this->payments->newOrderReference($technician->id);
+
+        try {
+            $response = $this->payments->initiateTechnicianRegistrationPayment(
+                (string) $technician->phone,
+                $orderReference,
+            );
+
+            $technician->update([
+                'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
+                'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+                'registration_payment_status' => strtolower((string) ($response['status'] ?? 'processing')),
+                'registration_payment_order_reference' => $response['orderReference'] ?? $orderReference,
+                'registration_payment_id' => $response['id'] ?? null,
+                'registration_payment_response' => $response,
+                'registration_payment_requested_at' => now(),
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Unable to initiate technician registration payment.', [
+                'technician_id' => $technician->id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $technician->update([
+                'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
+                'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+                'registration_payment_status' => 'request_failed',
+                'registration_payment_order_reference' => $orderReference,
+                'registration_payment_response' => ['message' => $exception->getMessage()],
+                'registration_payment_requested_at' => now(),
+            ]);
+        }
+    }
+
+    private function registrationPaymentIsActive(?string $status): bool
+    {
+        return in_array($status, ['processing', 'pending', 'success', 'settled'], true);
+    }
+
+    private function registrationPaymentDto(Technician $technician): array
+    {
+        return [
+            'amount' => (int) ($technician->registration_fee_amount ?? $this->payments->technicianRegistrationFee()),
+            'currency' => $technician->registration_fee_currency ?? config('services.clickpesa.currency', 'TZS'),
+            'status' => $technician->registration_payment_status ?? 'not_requested',
+            'orderReference' => $technician->registration_payment_order_reference ?? '',
+            'paymentId' => $technician->registration_payment_id ?? '',
+            'requestedAt' => $this->dateString($technician->registration_payment_requested_at),
         ];
     }
 
