@@ -42,6 +42,7 @@
         .button { border: 1px solid var(--line); background: white; color: var(--ink); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
         .button.primary { background: var(--brand); color: white; border-color: var(--brand); }
         .button.muted { color: var(--muted); }
+        select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: white; }
         .list { display: grid; gap: 10px; margin-top: 12px; }
         .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
         .item strong { display: block; }
@@ -72,6 +73,9 @@
 
     @if (session('status'))
         <div class="status">{{ session('status') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="status" style="background:#fdecec;color:var(--danger);">{{ $errors->first() }}</div>
     @endif
 
     <section class="metrics">
@@ -180,6 +184,21 @@
                         <p>No skill demand yet.</p>
                     @endforelse
                 </div>
+            </article>
+
+            <article class="panel">
+                <h2>Test notifications</h2>
+                <form method="post" action="{{ route('notifications.test') }}" class="list">
+                    @csrf
+                    <select name="user_id" aria-label="User with device token">
+                        @forelse ($notificationUsers as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }} · {{ $user->role }} · {{ $user->email }}</option>
+                        @empty
+                            <option value="">No registered devices</option>
+                        @endforelse
+                    </select>
+                    <button class="button primary" type="submit" @disabled($notificationUsers->isEmpty())>Send test notification</button>
+                </form>
             </article>
         </aside>
     </section>

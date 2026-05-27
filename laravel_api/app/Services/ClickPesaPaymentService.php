@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -11,7 +12,7 @@ class ClickPesaPaymentService
 {
     public function configured(): bool
     {
-        return filled(config('services.clickpesa.client_id')) && filled(config('services.clickpesa.api_key'));
+        return filled($this->clientId()) && filled($this->apiKey());
     }
 
     public function technicianRegistrationFee(): int
@@ -72,8 +73,8 @@ class ClickPesaPaymentService
     {
         $response = $this->client()
             ->withHeaders([
-                'client-id' => config('services.clickpesa.client_id'),
-                'api-key' => config('services.clickpesa.api_key'),
+                'client-id' => $this->clientId(),
+                'api-key' => $this->apiKey(),
             ])
             ->post('/generate-token');
 
@@ -90,6 +91,28 @@ class ClickPesaPaymentService
             ->acceptJson()
             ->asJson()
             ->timeout(20);
+    }
+
+    private function clientId(): ?string
+    {
+        return $this->secret('client_id');
+    }
+
+    private function apiKey(): ?string
+    {
+        return $this->secret('api_key');
+    }
+
+    private function secret(string $key): ?string
+    {
+        $encrypted = config("services.clickpesa.{$key}_encrypted");
+        if (filled($encrypted)) {
+            return Crypt::decryptString((string) $encrypted);
+        }
+
+        $plain = config("services.clickpesa.{$key}");
+
+        return filled($plain) ? (string) $plain : null;
     }
 
     private function normalizePhoneNumber(string $phoneNumber): string

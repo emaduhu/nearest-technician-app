@@ -6,6 +6,7 @@ use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
 use App\Services\PasswordResetService;
+use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -92,6 +93,13 @@ class PortalController extends Controller
                 ->orderByDesc('last_seen_at')
                 ->limit(12)
                 ->get(),
+            'notificationUsers' => User::query()
+                ->whereNotNull('device_token')
+                ->where('device_token', '!=', '')
+                ->orderBy('role')
+                ->orderBy('name')
+                ->limit(50)
+                ->get(),
             'topSkills' => ServiceRequest::query()
                 ->select('skill', DB::raw('count(*) as count'))
                 ->where('skill', '!=', '')
@@ -116,6 +124,32 @@ class PortalController extends Controller
         ]);
 
         return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
+    }
+
+    public function sendTestNotification(Request $request, PushNotificationService $push): RedirectResponse
+    {
+        $this->ensurePortalAccess();
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $user = User::findOrFail($data['user_id']);
+        if (blank($user->device_token)) {
+            return redirect()->route('dispatch')->withErrors(['notification' => 'Selected user does not have a device token.']);
+        }
+
+        $sent = $push->send($user->device_token, [
+            'title' => 'Nearest Technician test',
+            'body' => 'Notifications are working for this device.',
+        ], [
+            'type' => 'portal_test',
+            'userId' => $user->id,
+        ]);
+
+        return redirect()->route('dispatch')->with('status', $sent
+            ? "Test notification sent to {$user->name}."
+            : "Test notification could not be delivered to {$user->name}.");
     }
 
     public function technicianDashboard(Request $request): View

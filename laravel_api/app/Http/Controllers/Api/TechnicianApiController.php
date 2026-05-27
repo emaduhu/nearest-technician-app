@@ -32,7 +32,7 @@ class TechnicianApiController extends Controller
         return response()->json([
             'ok' => true,
             'database' => config('database.default'),
-            'firebasePush' => (bool) config('services.fcm.server_key'),
+            'firebasePush' => $this->push->configured(),
         ]);
     }
 
@@ -67,7 +67,7 @@ class TechnicianApiController extends Controller
             'recentRequests' => $recentRequests->map(fn (ServiceRequest $row) => $this->requestDto($row)),
             'technicians' => $technicians->map(fn (Technician $row) => $this->technicianDto($row)),
             'topSkills' => $topSkills->map(fn ($row) => ['skill' => $row->skill, 'count' => (int) $row->count]),
-            'firebasePush' => (bool) config('services.fcm.server_key'),
+            'firebasePush' => $this->push->configured(),
         ]);
     }
 
@@ -443,8 +443,15 @@ class TechnicianApiController extends Controller
         $serviceRequest->load(['client', 'technician']);
         $pushed = $this->push->send($serviceRequest->client?->device_token, [
             'title' => 'Technician response',
-            'body' => "{$serviceRequest->technician->name} {$status} your request",
-        ], ['requestId' => $serviceRequest->id, 'type' => 'request_response', 'status' => $status]);
+            'body' => $status === 'accepted'
+                ? "{$serviceRequest->technician->name} accepted your request and is on the way."
+                : "{$serviceRequest->technician->name} {$status} your request",
+        ], [
+            'requestId' => $serviceRequest->id,
+            'type' => 'request_response',
+            'status' => $status,
+            'technicianName' => $serviceRequest->technician->name,
+        ]);
 
         return response()->json([
             'ok' => true,
