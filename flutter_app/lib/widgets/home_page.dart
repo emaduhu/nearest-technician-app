@@ -116,9 +116,22 @@ class _HomePageState extends State<HomePage> {
         }
       } catch (e) {
         if (mounted) {
+          if (e is ApiException && e.code == 'account_not_found') {
+            await _locationSub?.cancel();
+            _locationSub = null;
+            setState(
+                () => _status = AppLocalizations.of(context).sessionExpired);
+            return;
+          }
+
           setState(
               () => _status = e.toString().replaceFirst('Exception: ', ''));
         }
+      }
+    }, onError: (Object error) {
+      if (mounted) {
+        setState(() => _status = AppLocalizations.of(context)
+            .locationUpdateFailed(error.toString()));
       }
     });
   }

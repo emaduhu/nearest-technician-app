@@ -78,6 +78,12 @@ class AppLocalizations {
   String get liveLocationUpdated => isSwahili
       ? 'Eneo la moja kwa moja limesasishwa'
       : 'Live location updated';
+  String get sessionExpired => isSwahili
+      ? 'Muda wa akaunti umeisha. Tafadhali ingia tena.'
+      : 'Your session is no longer valid. Please sign in again.';
+  String locationUpdateFailed(String message) => isSwahili
+      ? 'Eneo halijasasishwa: $message'
+      : 'Location update failed: $message';
   String get searchingTechnicians =>
       isSwahili ? 'Inatafuta mafundi...' : 'Searching technicians...';
   String get noTechMatch => isSwahili

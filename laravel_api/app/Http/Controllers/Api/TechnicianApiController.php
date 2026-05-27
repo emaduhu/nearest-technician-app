@@ -276,8 +276,16 @@ class TechnicianApiController extends Controller
         return response()->json($technicians);
     }
 
-    public function updateUserLocation(Request $request, User $user): JsonResponse
+    public function updateUserLocation(Request $request, string $user): JsonResponse
     {
+        $user = User::find($user);
+        if (! $user) {
+            return response()->json([
+                'error' => 'Account not found. Please sign in again.',
+                'code' => 'account_not_found',
+            ], 404);
+        }
+
         $data = $request->validate([
             'lat' => ['required', 'numeric'],
             'lon' => ['required', 'numeric'],
@@ -302,8 +310,16 @@ class TechnicianApiController extends Controller
         return response()->json(['ok' => true, 'user' => $this->userDto($user->fresh())]);
     }
 
-    public function updateTechnicianLocation(Request $request, Technician $technician): JsonResponse
+    public function updateTechnicianLocation(Request $request, string $technician): JsonResponse
     {
+        $technician = Technician::with('user')->find($technician);
+        if (! $technician) {
+            return response()->json([
+                'error' => 'Technician account not found. Please sign in again.',
+                'code' => 'account_not_found',
+            ], 404);
+        }
+
         $data = $request->validate([
             'lat' => ['required', 'numeric'],
             'lon' => ['required', 'numeric'],
