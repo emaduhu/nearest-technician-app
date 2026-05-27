@@ -96,6 +96,10 @@ class ClickPesaPaymentService
     {
         $phoneNumber = preg_replace('/\D+/', '', $phoneNumber) ?? '';
 
+        if (str_starts_with($phoneNumber, '255')) {
+            return $phoneNumber;
+        }
+
         if (str_starts_with($phoneNumber, '0')) {
             return '255'.substr($phoneNumber, 1);
         }

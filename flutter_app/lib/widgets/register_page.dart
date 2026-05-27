@@ -75,7 +75,7 @@ class _RegisterPageState extends State<RegisterPage> {
         session = await _api.registerDevice({
           'role': _role,
           'name': _nameCtrl.text.trim(),
-          'phone': _phoneCtrl.text.trim(),
+          'phone': _normalizedTanzaniaPhone(_phoneCtrl.text),
           'email': _emailCtrl.text.trim(),
           'password': _passwordCtrl.text,
           'skills': _skillsCtrl.text,
@@ -136,7 +136,26 @@ class _RegisterPageState extends State<RegisterPage> {
       return l10n.invalidCredentials;
     }
 
+    if (error is ApiException && error.code == 'unsupported_payment_operator') {
+      return l10n.mpesaNotSupported;
+    }
+
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _normalizedTanzaniaPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'\D+'), '');
+    if (digits.startsWith('255')) return digits;
+    if (digits.startsWith('0')) return '255${digits.substring(1)}';
+    if (digits.length == 9) return '255$digits';
+    return digits;
+  }
+
+  bool _looksLikeMpesa(String value) {
+    final phone = _normalizedTanzaniaPhone(value);
+    if (phone.length < 5 || !phone.startsWith('255')) return false;
+    final prefix = phone.substring(3, 5);
+    return const {'74', '75', '76'}.contains(prefix);
   }
 
   @override
@@ -259,10 +278,26 @@ class _RegisterPageState extends State<RegisterPage> {
                                 controller: _phoneCtrl,
                                 decoration: const InputDecoration(
                                   prefixIcon: Icon(Icons.call_outlined),
-                                ).copyWith(labelText: l10n.phone),
+                                  prefixText: '+255 ',
+                                ).copyWith(
+                                  labelText: l10n.phone,
+                                  hintText: '712345678',
+                                ),
                                 keyboardType: TextInputType.phone,
+                                validator: (v) {
+                                  if (_role != 'technician') return null;
+                                  if (v == null || v.trim().isEmpty) {
+                                    return l10n.phoneRequired;
+                                  }
+                                  if (_looksLikeMpesa(v)) {
+                                    return l10n.mpesaNotSupported;
+                                  }
+                                  return null;
+                                },
                               ),
                               if (_role == 'technician') ...[
+                                const SizedBox(height: 12),
+                                _RegistrationFeeNotice(l10n: l10n),
                                 const SizedBox(height: 12),
                                 TextFormField(
                                   controller: _skillsCtrl,
@@ -344,6 +379,41 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RegistrationFeeNotice extends StatelessWidget {
+  final AppLocalizations l10n;
+
+  const _RegistrationFeeNotice({required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF5F3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDCE4E8)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.payments_outlined, color: color.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l10n.registrationFeeNotice,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: const Color(0xFF30414A)),
+            ),
+          ),
+        ],
       ),
     );
   }

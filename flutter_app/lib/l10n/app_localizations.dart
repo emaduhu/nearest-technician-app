@@ -33,6 +33,17 @@ class AppLocalizations {
       : 'Find vetted technicians near your location.';
   String get fullName => isSwahili ? 'Jina kamili' : 'Full name';
   String get phone => isSwahili ? 'Simu' : 'Phone';
+  String get phoneRequired =>
+      isSwahili ? 'Namba ya simu inahitajika' : 'Phone number is required';
+  String get mpesaNotSupported => isSwahili
+      ? 'M-Pesa bado haipokelewi. Tumia namba ya Yas, Airtel au Halopesa.'
+      : 'M-Pesa is not supported yet. Use a Yas, Airtel, or Halopesa number.';
+  String get registrationFeeNotice => isSwahili
+      ? 'Ada ya usajili ni TZS 5000. Malipo kwa sasa yanapokelewa kupitia Yas, Airtel na Halopesa. Tunaongeza M-Pesa hivi karibuni, kwa sasa usitumie namba ya M-Pesa.'
+      : 'Registration fee is TZS 5000. Payments currently work with Yas, Airtel, and Halopesa. We are adding M-Pesa soon, so do not use an M-Pesa number for the push.';
+  String get registrationFeeOperators => isSwahili
+      ? 'Tumia Yas, Airtel au Halopesa. M-Pesa itaongezwa hivi karibuni.'
+      : 'Use Yas, Airtel, or Halopesa. M-Pesa is coming soon.';
   String get skillsComma =>
       isSwahili ? 'Ujuzi, tenganisha kwa koma' : 'Skills, comma separated';
   String get email => isSwahili ? 'Barua pepe' : 'Email';
@@ -186,6 +197,8 @@ class AppLocalizations {
         return isSwahili ? 'haijasanidiwa' : 'not configured';
       case 'request_failed':
         return isSwahili ? 'ombi halikufaulu' : 'request failed';
+      case 'unsupported_payment_operator':
+        return mpesaNotSupported;
       default:
         return status.isEmpty ? (isSwahili ? 'inasubiri' : 'pending') : status;
     }

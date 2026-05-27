@@ -469,6 +469,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     style: const TextStyle(color: Color(0xFF697781)),
                   ),
+                  Text(
+                    l10n.registrationFeeOperators,
+                    style: const TextStyle(color: Color(0xFF697781)),
+                  ),
                 ],
               ),
             ),

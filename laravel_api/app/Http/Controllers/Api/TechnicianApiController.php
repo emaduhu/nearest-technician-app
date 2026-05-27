@@ -91,13 +91,22 @@ class TechnicianApiController extends Controller
         $latitude = (float) $data['lat'];
         $longitude = (float) $data['lon'];
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
+        $phone = filled($data['phone'] ?? null) ? $this->normalizeTanzaniaPhone((string) $data['phone']) : null;
+
+        if ($data['role'] === 'technician' && $phone && $this->isMpesaPhoneNumber($phone)) {
+            return response()->json([
+                'error' => 'Registration fee supports Yas, Airtel, and Halopesa only. M-Pesa is not supported yet, so please register with a Yas, Airtel, or Halopesa number.',
+                'code' => 'unsupported_payment_operator',
+                'supportedOperators' => $this->registrationFeeSupportedOperators(),
+            ], 422);
+        }
 
         $user = User::updateOrCreate(
             ['email' => $email],
             [
                 'role' => $data['role'],
                 'name' => $data['name'],
-                'phone' => $data['phone'] ?? null,
+                'phone' => $phone,
                 'password' => $data['password'],
                 'device_token' => $deviceToken,
                 'last_location' => [
@@ -115,7 +124,7 @@ class TechnicianApiController extends Controller
                 [
                     'user_id' => $user->id,
                     'name' => $data['name'],
-                    'phone' => $data['phone'] ?? null,
+                    'phone' => $phone,
                     'password' => $data['password'],
                     'device_token' => $deviceToken,
                     'skills' => $this->normalizeSkills($data['skills'] ?? []),
@@ -630,8 +639,42 @@ class TechnicianApiController extends Controller
             'status' => $technician->registration_payment_status ?? 'not_requested',
             'orderReference' => $technician->registration_payment_order_reference ?? '',
             'paymentId' => $technician->registration_payment_id ?? '',
+            'supportedOperators' => $this->registrationFeeSupportedOperators(),
+            'unsupportedOperatorMessage' => 'Use Yas, Airtel, or Halopesa for the registration fee. M-Pesa is coming soon.',
             'requestedAt' => $this->dateString($technician->registration_payment_requested_at),
         ];
+    }
+
+    private function registrationFeeSupportedOperators(): array
+    {
+        return ['Yas', 'Airtel', 'Halopesa'];
+    }
+
+    private function normalizeTanzaniaPhone(string $phone): string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if (str_starts_with($phone, '255')) {
+            return $phone;
+        }
+
+        if (str_starts_with($phone, '0')) {
+            return '255'.substr($phone, 1);
+        }
+
+        if (strlen($phone) === 9) {
+            return '255'.$phone;
+        }
+
+        return $phone;
+    }
+
+    private function isMpesaPhoneNumber(string $phone): bool
+    {
+        $phone = $this->normalizeTanzaniaPhone($phone);
+        $prefix = substr($phone, 3, 2);
+
+        return in_array($prefix, ['74', '75', '76'], true);
     }
 
     private function requestDto(ServiceRequest $serviceRequest): array
