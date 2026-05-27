@@ -137,6 +137,11 @@ class TechnicianApiController extends Controller
 
     public function registrationPaymentStatus(Technician $technician): JsonResponse
     {
+        if ($this->registrationPaymentCanBeRequested($technician->registration_payment_status)) {
+            $this->requestTechnicianRegistrationPayment($technician);
+            $technician = $technician->fresh();
+        }
+
         if (blank($technician->registration_payment_order_reference)) {
             return response()->json([
                 'ok' => true,
@@ -594,6 +599,11 @@ class TechnicianApiController extends Controller
     private function registrationPaymentIsActive(?string $status): bool
     {
         return in_array($status, ['processing', 'pending', 'success', 'settled'], true);
+    }
+
+    private function registrationPaymentCanBeRequested(?string $status): bool
+    {
+        return in_array($status, [null, '', 'not_requested', 'not_configured', 'request_failed', 'failed'], true);
     }
 
     private function registrationPaymentDto(Technician $technician): array

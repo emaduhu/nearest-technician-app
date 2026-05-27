@@ -65,7 +65,7 @@ class ClickPesaPaymentService
 
     public function newOrderReference(int|string $technicianId): string
     {
-        return sprintf('TECH-REG-%s-%s', $technicianId, Str::upper(Str::random(8)));
+        return sprintf('TECHREG%s%s', $technicianId, Str::upper(Str::random(10)));
     }
 
     private function authorizationToken(): string
