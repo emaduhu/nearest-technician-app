@@ -39,11 +39,11 @@ class AppLocalizations {
       ? 'M-Pesa bado haipokelewi. Tumia namba ya Yas, Airtel au Halopesa.'
       : 'M-Pesa is not supported yet. Use a Yas, Airtel, or Halopesa number.';
   String get registrationFeeNotice => isSwahili
-      ? 'Ada ya usajili ni TZS 5000. Malipo kwa sasa yanapokelewa kupitia Yas, Airtel na Halopesa. Tunaongeza M-Pesa hivi karibuni, kwa sasa usitumie namba ya M-Pesa.'
-      : 'Registration fee is TZS 5000. Payments currently work with Yas, Airtel, and Halopesa. We are adding M-Pesa soon, so do not use an M-Pesa number for the push.';
+      ? 'Ada ya usajili ni TZS 5000. Malipo kwa sasa yanapokelewa kupitia Yas, Airtel na Halopesa. Ukipokea ombi la malipo lenye jina CLICKPESA, ni sahihi; endelea kulipa. Tunaongeza M-Pesa hivi karibuni, kwa sasa usitumie namba ya M-Pesa.'
+      : 'Registration fee is TZS 5000. Payments currently work with Yas, Airtel, and Halopesa. If the payment prompt shows CLICKPESA, that is correct; proceed with payment. We are adding M-Pesa soon, so do not use an M-Pesa number for the push.';
   String get registrationFeeOperators => isSwahili
-      ? 'Tumia Yas, Airtel au Halopesa. M-Pesa itaongezwa hivi karibuni.'
-      : 'Use Yas, Airtel, or Halopesa. M-Pesa is coming soon.';
+      ? 'Tumia Yas, Airtel au Halopesa. Ombi likionyesha CLICKPESA, endelea. M-Pesa itaongezwa hivi karibuni.'
+      : 'Use Yas, Airtel, or Halopesa. If the prompt shows CLICKPESA, proceed. M-Pesa is coming soon.';
   String get skillsComma =>
       isSwahili ? 'Ujuzi, tenganisha kwa koma' : 'Skills, comma separated';
   String get email => isSwahili ? 'Barua pepe' : 'Email';
