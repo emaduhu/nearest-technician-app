@@ -9,6 +9,10 @@ class UpdateCheckService {
     return _cache.putIfAbsent(
         languageCode,
         () => Upgrader(
+              countryCode: 'TZ',
+              debugDisplayAlways: false,
+              debugDisplayOnce: false,
+              debugLogging: false,
               languageCode: languageCode,
               messages: languageCode == 'sw'
                   ? SwahiliUpgraderMessages()

@@ -100,7 +100,7 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       builder: (context, child) {
-        return UpgradeAlert(
+        return ForceUpgradeAlert(
           upgrader: UpdateCheckService.upgraderFor(_locale),
           barrierDismissible: false,
           dialogStyle: UpgradeDialogStyle.material,
@@ -123,5 +123,29 @@ class _MyAppState extends State<MyApp> {
               onLogout: () => setState(() => _session = null),
             ),
     );
+  }
+}
+
+class ForceUpgradeAlert extends UpgradeAlert {
+  ForceUpgradeAlert({
+    required super.upgrader,
+    required super.barrierDismissible,
+    required super.dialogStyle,
+    required super.shouldPopScope,
+    required super.showIgnore,
+    required super.showLater,
+    required super.showReleaseNotes,
+    required super.child,
+    super.key,
+  });
+
+  @override
+  UpgradeAlertState createState() => _ForceUpgradeAlertState();
+}
+
+class _ForceUpgradeAlertState extends UpgradeAlertState {
+  @override
+  void onUserUpdated(BuildContext context, bool shouldPop) {
+    widget.upgrader.sendUserToAppStore();
   }
 }

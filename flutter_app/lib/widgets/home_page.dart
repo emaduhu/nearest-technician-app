@@ -124,14 +124,14 @@ class _HomePageState extends State<HomePage> {
             return;
           }
 
-          setState(
-              () => _status = e.toString().replaceFirst('Exception: ', ''));
+          setState(() =>
+              _status = AppLocalizations.of(context).liveLocationUpdateFailed);
         }
       }
     }, onError: (Object error) {
       if (mounted) {
-        setState(() => _status = AppLocalizations.of(context)
-            .locationUpdateFailed(error.toString()));
+        setState(() =>
+            _status = AppLocalizations.of(context).liveLocationUpdateFailed);
       }
     });
   }
