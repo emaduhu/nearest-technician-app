@@ -134,6 +134,13 @@
                                 @method('delete')
                                 <button class="button danger" type="submit">Delete</button>
                             </form>
+                            @if (filled($user->device_token))
+                                <form class="inline" method="post" action="{{ route('notifications.test') }}">
+                                    @csrf
+                                    <input type="hidden" name="user_id" value="{{ $user->id }}">
+                                    <button class="button" type="submit">Test FCM</button>
+                                </form>
+                            @endif
                         </div>
                     </td>
                 </tr>

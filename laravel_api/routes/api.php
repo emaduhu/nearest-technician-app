@@ -14,6 +14,7 @@ Route::get('/technicians/search', [TechnicianApiController::class, 'searchTechni
 Route::get('/technicians/{technician}/registration-payment', [TechnicianApiController::class, 'registrationPaymentStatus']);
 Route::patch('/users/{user}/location', [TechnicianApiController::class, 'updateUserLocation']);
 Route::patch('/technicians/{technician}/location', [TechnicianApiController::class, 'updateTechnicianLocation']);
+Route::patch('/techmicians/{technician}/location', [TechnicianApiController::class, 'updateTechnicianLocation']);
 Route::patch('/technicians/{technician}/availability', [TechnicianApiController::class, 'updateAvailability']);
 Route::post('/requests', [TechnicianApiController::class, 'createRequest']);
 Route::patch('/requests/{serviceRequest}/respond', [TechnicianApiController::class, 'respondToRequest']);

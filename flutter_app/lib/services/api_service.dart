@@ -105,21 +105,29 @@ class ApiService {
   Future<Map<String, dynamic>> updateTechnicianLocation(
       String technicianId, double lat, double lon, bool available) async {
     final client = await _client;
-    return _decode(await client.patch(
-      Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
-      headers: _headers,
-      body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
-    ));
+    try {
+      return _decode(await client.patch(
+        Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
+        headers: _headers,
+        body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
+      ));
+    } on Exception catch (error) {
+      _throwConnectionFailureForLocation(error);
+    }
   }
 
   Future<Map<String, dynamic>> updateUserLocation(
       String userId, double lat, double lon) async {
     final client = await _client;
-    return _decode(await client.patch(
-      Uri.parse('$serverUrl/api/users/$userId/location'),
-      headers: _headers,
-      body: jsonEncode({'lat': lat, 'lon': lon}),
-    ));
+    try {
+      return _decode(await client.patch(
+        Uri.parse('$serverUrl/api/users/$userId/location'),
+        headers: _headers,
+        body: jsonEncode({'lat': lat, 'lon': lon}),
+      ));
+    } on Exception catch (error) {
+      _throwConnectionFailureForLocation(error);
+    }
   }
 
   Future<Map<String, dynamic>> updateAvailability(
@@ -169,6 +177,25 @@ class ApiService {
     } on FormatException {
       return null;
     }
+  }
+
+  Never _throwConnectionFailureForLocation(Exception error) {
+    final message = error.toString();
+    if (error is http.ClientException ||
+        message.contains('SocketException') ||
+        message.contains('Connection closed') ||
+        message.contains('Client connection closed') ||
+        message.contains('Failed host lookup') ||
+        message.contains('Connection refused') ||
+        message.contains('Connection reset')) {
+      throw const ApiException(
+        'Connection failure',
+        0,
+        code: 'connection_failure',
+      );
+    }
+
+    throw error;
   }
 
   Future<Map<String, dynamic>> _decode(http.Response res) async {
