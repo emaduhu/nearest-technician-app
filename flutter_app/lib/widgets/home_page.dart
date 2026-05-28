@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../services/fcm_service.dart';
 import '../services/location_service.dart';
@@ -270,6 +271,91 @@ class _HomePageState extends State<HomePage> {
           : l10n.requestStatus(status));
       await _loadHistory();
     } catch (e) {
+      setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _callTechnician(String phone) async {
+    final digits = phone.replaceAll(RegExp(r'\s+'), '');
+    if (digits.isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: digits);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _endRequest(Map<String, dynamic> request) async {
+    final l10n = AppLocalizations.of(context);
+    int rating = 5;
+    final reportCtrl = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(l10n.endRequest),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.rateTechnician),
+                  const SizedBox(height: 8),
+                  SegmentedButton<int>(
+                    segments: List.generate(
+                      5,
+                      (index) => ButtonSegment<int>(
+                        value: index + 1,
+                        label: Text('${index + 1}'),
+                      ),
+                    ),
+                    selected: {rating},
+                    onSelectionChanged: (values) {
+                      setDialogState(() => rating = values.first);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reportCtrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.reportTechnician,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(l10n.back),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(l10n.submit),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (submitted != true) {
+      reportCtrl.dispose();
+      return;
+    }
+
+    try {
+      await _api.completeRequest(request['id'].toString(), {
+        'clientId': _user['id'],
+        'rating': rating,
+        'report': reportCtrl.text.trim(),
+      });
+      reportCtrl.dispose();
+      setState(() => _status = l10n.requestEnded);
+      await _loadHistory();
+    } catch (e) {
+      reportCtrl.dispose();
       setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
     }
   }
@@ -646,6 +732,9 @@ class _HomePageState extends State<HomePage> {
       _toDouble(techLocation['latitude']),
       _toDouble(techLocation['longitude']),
     );
+    final etaMinutes =
+        distance == null ? null : math.max(1, (distance / 25 * 60).round());
+    final phone = techMap['phone']?.toString() ?? '';
 
     return Card(
       child: Padding(
@@ -680,6 +769,37 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 10),
+            SizedBox(
+              height: 132,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _RouteMiniMapPainter(hasRoute: distance != null),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFDCE4E8)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        child: Text(
+                          etaMinutes == null
+                              ? l10n.etaPending
+                              : l10n.etaMinutes(etaMinutes),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -693,6 +813,24 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.engineering_outlined,
                   label: l10n.technicianLocation,
                   value: _formatLocation(techLocation),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed:
+                      phone.isEmpty ? null : () => _callTechnician(phone),
+                  icon: const Icon(Icons.call),
+                  label: Text(phone.isEmpty ? l10n.phoneUnavailable : phone),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _endRequest(request),
+                  icon: const Icon(Icons.task_alt),
+                  label: Text(l10n.endRequest),
                 ),
               ],
             ),
@@ -1111,6 +1249,59 @@ class _LocationChip extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _RouteMiniMapPainter extends CustomPainter {
+  final bool hasRoute;
+
+  const _RouteMiniMapPainter({required this.hasRoute});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()..color = const Color(0xFFE8F1EF);
+    final road = Paint()
+      ..color = const Color(0xFF9FB4BA)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    final route = Paint()
+      ..color = hasRoute ? const Color(0xFF0F766E) : const Color(0xFF697781)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final marker = Paint()..color = const Color(0xFF2563EB);
+    final destination = Paint()..color = const Color(0xFF0F766E);
+
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(rect, background);
+
+    for (var i = 1; i < 4; i++) {
+      final y = size.height * i / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), road);
+    }
+    for (var i = 1; i < 4; i++) {
+      final x = size.width * i / 4;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), road);
+    }
+
+    final path = Path()
+      ..moveTo(24, size.height - 24)
+      ..cubicTo(size.width * .28, size.height * .62, size.width * .45,
+          size.height * .78, size.width * .58, size.height * .45)
+      ..cubicTo(size.width * .70, size.height * .18, size.width * .84,
+          size.height * .28, size.width - 26, 24);
+    canvas.drawPath(path, route);
+
+    canvas.drawCircle(Offset(24, size.height - 24), 7, marker);
+    canvas.drawCircle(Offset(size.width - 26, 24), 7, destination);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RouteMiniMapPainter oldDelegate) {
+    return oldDelegate.hasRoute != hasRoute;
   }
 }
 

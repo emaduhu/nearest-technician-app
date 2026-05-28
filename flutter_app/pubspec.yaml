@@ -16,6 +16,7 @@ dependencies:
   http: ^1.6.0
   geolocator: ^14.0.2
   permission_handler: ^12.0.1
+  url_launcher: ^6.3.2
   upgrader: ^13.2.0
 
 dev_dependencies:

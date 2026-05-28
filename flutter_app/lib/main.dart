@@ -12,11 +12,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   FcmService.registerBackgroundHandler();
-  runApp(const MyApp());
+  final initialNotification = await FcmService.initialPayload();
+  runApp(MyApp(initialNotification: initialNotification));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final Map<String, dynamic>? initialNotification;
+
+  const MyApp({this.initialNotification, super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -25,6 +28,13 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   Map<String, dynamic>? _session;
   Locale _locale = const Locale('en');
+
+  bool get _openedFromNotification => widget.initialNotification != null;
+
+  String? get _notificationRole {
+    final type = widget.initialNotification?['type']?.toString();
+    return type == 'tech_request' ? 'technician' : 'client';
+  }
 
   void _setLocale(Locale locale) {
     setState(() => _locale = locale);
@@ -112,6 +122,11 @@ class _MyAppState extends State<MyApp> {
       home: _session == null
           ? RegisterPage(
               locale: _locale,
+              initialLoginMode: _openedFromNotification,
+              initialRole: _notificationRole,
+              initialStatus: _openedFromNotification
+                  ? 'Sign in to view this notification.'
+                  : null,
               onLocaleChanged: _setLocale,
               onRegistered: (session) => setState(() => _session = session))
           : HomePage(

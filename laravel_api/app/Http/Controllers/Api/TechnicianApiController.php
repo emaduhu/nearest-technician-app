@@ -547,6 +547,45 @@ class TechnicianApiController extends Controller
         ]);
     }
 
+    public function completeRequest(Request $request, ServiceRequest $serviceRequest): JsonResponse
+    {
+        $data = $request->validate([
+            'clientId' => ['required', 'integer', 'exists:users,id'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'report' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        if ((int) $data['clientId'] !== (int) $serviceRequest->client_id) {
+            return response()->json(['error' => 'Request belongs to another client'], 403);
+        }
+
+        if ($serviceRequest->status !== 'accepted') {
+            return response()->json([
+                'error' => 'Only accepted requests can be ended.',
+                'code' => 'request_not_active',
+            ], 422);
+        }
+
+        $serviceRequest->update([
+            'status' => 'completed',
+            'client_rating' => (int) $data['rating'],
+            'client_report' => $data['report'] ?? null,
+            'completed_at' => now(),
+        ]);
+
+        $technician = $serviceRequest->technician;
+        if ($technician) {
+            $technician->update([
+                'rating' => round((((float) $technician->rating) + (int) $data['rating']) / 2, 2),
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'request' => $this->requestDto($serviceRequest->fresh(['client', 'technician'])),
+        ]);
+    }
+
     public function requestHistory(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -792,6 +831,8 @@ class TechnicianApiController extends Controller
             ],
             'distanceKm' => $serviceRequest->distance_km,
             'responseMessage' => $serviceRequest->response_message ?? '',
+            'clientRating' => $serviceRequest->client_rating,
+            'clientReport' => $serviceRequest->client_report ?? '',
             'createdAt' => $this->dateString($serviceRequest->created_at),
             'respondedAt' => $this->dateString($serviceRequest->responded_at),
             'completedAt' => $this->dateString($serviceRequest->completed_at),

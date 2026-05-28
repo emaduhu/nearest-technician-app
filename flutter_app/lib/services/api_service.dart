@@ -97,6 +97,17 @@ class ApiService {
     });
   }
 
+  Future<Map<String, dynamic>> completeRequest(
+      String requestId, Map<String, dynamic> payload) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.patch(
+          Uri.parse('$serverUrl/api/requests/$requestId/complete'),
+          headers: _headers,
+          body: jsonEncode(payload)));
+    });
+  }
+
   Future<List<dynamic>> getHistory(
       {String? clientId, String? technicianId, String? status}) async {
     final params = <String, String>{};

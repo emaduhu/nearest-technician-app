@@ -8,11 +8,17 @@ class RegisterPage extends StatefulWidget {
   final Function(Map<String, dynamic> session) onRegistered;
   final Locale locale;
   final ValueChanged<Locale> onLocaleChanged;
+  final bool initialLoginMode;
+  final String? initialRole;
+  final String? initialStatus;
 
   const RegisterPage({
     required this.onRegistered,
     required this.locale,
     required this.onLocaleChanged,
+    this.initialLoginMode = false,
+    this.initialRole,
+    this.initialStatus,
     super.key,
   });
 
@@ -39,6 +45,9 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void initState() {
     super.initState();
+    _loginMode = widget.initialLoginMode;
+    _role = widget.initialRole ?? _role;
+    _status = widget.initialStatus ?? _status;
     _initializeFcm();
   }
 

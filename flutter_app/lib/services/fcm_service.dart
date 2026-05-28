@@ -11,6 +11,15 @@ class FcmService {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
 
+  static Future<Map<String, dynamic>?> initialPayload() async {
+    final message = await FirebaseMessaging.instance.getInitialMessage();
+    if (message == null) {
+      return null;
+    }
+
+    return _payloadFor(message);
+  }
+
   Future<String?> init(
     Function(Map<String, dynamic>) onMessage, {
     Function(String token)? onTokenRefresh,
@@ -47,7 +56,7 @@ class FcmService {
     return null;
   }
 
-  Map<String, dynamic> _payloadFor(RemoteMessage message) {
+  static Map<String, dynamic> _payloadFor(RemoteMessage message) {
     return {
       ...message.data,
       if (message.notification?.title != null)

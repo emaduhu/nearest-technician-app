@@ -161,6 +161,18 @@ class AppLocalizations {
       isSwahili ? 'Eneo la fundi' : 'Technician location';
   String get locationPending =>
       isSwahili ? 'Eneo halijapatikana' : 'Location pending';
+  String etaMinutes(int minutes) =>
+      isSwahili ? 'Dakika $minutes' : '$minutes min ETA';
+  String get etaPending => isSwahili ? 'ETA inasubiri' : 'ETA pending';
+  String get phoneUnavailable => isSwahili ? 'Simu haipo' : 'Phone unavailable';
+  String get endRequest => isSwahili ? 'Maliza ombi' : 'End request';
+  String get rateTechnician =>
+      isSwahili ? 'Mpe fundi alama' : 'Rate the technician';
+  String get reportTechnician =>
+      isSwahili ? 'Ripoti kuhusu fundi' : 'Report the technician';
+  String get submit => isSwahili ? 'Tuma' : 'Submit';
+  String get requestEnded =>
+      isSwahili ? 'Ombi limekamilika' : 'Request completed';
   String get technicianDashboard =>
       isSwahili ? 'Dashibodi ya fundi' : 'Technician dashboard';
   String get technicianDashboardTitle =>

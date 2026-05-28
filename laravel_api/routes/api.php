@@ -19,6 +19,7 @@ Route::patch('/techmicians/{technician}/location', [TechnicianApiController::cla
 Route::patch('/technicians/{technician}/availability', [TechnicianApiController::class, 'updateAvailability']);
 Route::post('/requests', [TechnicianApiController::class, 'createRequest']);
 Route::patch('/requests/{serviceRequest}/respond', [TechnicianApiController::class, 'respondToRequest']);
+Route::patch('/requests/{serviceRequest}/complete', [TechnicianApiController::class, 'completeRequest']);
 Route::get('/requests/history', [TechnicianApiController::class, 'requestHistory']);
 
 Route::post('/request', [TechnicianApiController::class, 'createRequest']);

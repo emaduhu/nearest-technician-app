@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'technician_longitude_at_request',
     'distance_km',
     'response_message',
+    'client_rating',
+    'client_report',
     'responded_at',
     'completed_at',
 ])]
@@ -31,6 +33,7 @@ class ServiceRequest extends Model
             'technician_latitude_at_request' => 'float',
             'technician_longitude_at_request' => 'float',
             'distance_km' => 'float',
+            'client_rating' => 'integer',
             'responded_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

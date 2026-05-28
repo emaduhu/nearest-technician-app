@@ -21,6 +21,8 @@ return new class extends Migration
             $table->decimal('technician_longitude_at_request', 10, 7)->nullable();
             $table->decimal('distance_km', 8, 2)->nullable();
             $table->text('response_message')->nullable();
+            $table->unsignedTinyInteger('client_rating')->nullable();
+            $table->text('client_report')->nullable();
             $table->timestamp('responded_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
