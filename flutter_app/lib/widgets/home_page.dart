@@ -88,8 +88,10 @@ class _HomePageState extends State<HomePage> {
             _status = data['body']?.toString() ?? l10n.newStatus;
           } else if (type == 'request_response' ||
               type == 'technician_response') {
-            _status =
-                '${l10n.requestUpdated}: ${l10n.statusLabel(data['status']?.toString() ?? l10n.newStatus)}';
+            final status = data['status']?.toString() ?? l10n.newStatus;
+            _status = status == 'accepted' && data['body'] != null
+                ? data['body'].toString()
+                : '${l10n.requestUpdated}: ${l10n.statusLabel(status)}';
           } else {
             _status = l10n.newRequestReceived;
           }

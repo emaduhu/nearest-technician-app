@@ -473,21 +473,46 @@ class TechnicianApiController extends Controller
         ]);
 
         $serviceRequest->load(['client', 'technician']);
-        $pushed = $this->push->send($serviceRequest->client?->device_token, [
-            'title' => 'Technician response',
-            'body' => $status === 'accepted'
-                ? "{$serviceRequest->technician->name} accepted your request and is on the way."
-                : "{$serviceRequest->technician->name} {$status} your request",
-        ], [
+        $technicianName = $serviceRequest->technician?->name ?? 'Technician';
+        $notificationTitle = $status === 'accepted'
+            ? 'Technician accepted your request'
+            : 'Technician response';
+        $notificationBody = $status === 'accepted'
+            ? "{$technicianName} accepted your request and is on the way."
+            : "{$technicianName} {$status} your request";
+        $notificationData = [
             'requestId' => $serviceRequest->id,
             'type' => 'request_response',
             'status' => $status,
-            'technicianName' => $serviceRequest->technician->name,
-        ]);
+            'technicianId' => $serviceRequest->technician_id,
+            'technicianName' => $technicianName,
+            'title' => $notificationTitle,
+            'body' => $notificationBody,
+        ];
+
+        $clientToken = $serviceRequest->client?->device_token;
+        $pushed = $this->push->send($clientToken, [
+            'title' => $notificationTitle,
+            'body' => $notificationBody,
+        ], $notificationData);
+
+        if ($status === 'accepted' && ! $pushed) {
+            Log::warning('Accepted request notification was not delivered to the client.', [
+                'request_id' => $serviceRequest->id,
+                'client_id' => $serviceRequest->client_id,
+                'technician_id' => $serviceRequest->technician_id,
+                'has_client_token' => filled($clientToken),
+            ]);
+        }
 
         return response()->json([
             'ok' => true,
             'pushed' => $pushed,
+            'clientNotification' => [
+                'required' => $status === 'accepted',
+                'sent' => $pushed,
+                'hasToken' => filled($clientToken),
+            ],
             'request' => $this->requestDto($serviceRequest->fresh(['client', 'technician'])),
         ]);
     }
