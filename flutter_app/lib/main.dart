@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'services/update_check_service.dart';
 import 'widgets/register_page.dart';
@@ -10,10 +9,7 @@ import 'package:upgrader/upgrader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize with firebase options. Replace placeholders in lib/firebase_options.dart with real values from `flutterfire configure`.
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 

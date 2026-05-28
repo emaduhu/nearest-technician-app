@@ -1,4 +1,4 @@
-package com.evaristusmaduhu.technicians
+package net.vigourtech.nt
 
 import io.flutter.embedding.android.FlutterActivity
 

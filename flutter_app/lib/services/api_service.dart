@@ -28,23 +28,29 @@ class ApiService {
 
   Future<Map<String, dynamic>> registerDevice(
       Map<String, dynamic> payload) async {
-    final client = await _client;
-    return _decode(await client.post(Uri.parse('$serverUrl/api/register'),
-        headers: _headers, body: jsonEncode(payload)));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(Uri.parse('$serverUrl/api/register'),
+          headers: _headers, body: jsonEncode(payload)));
+    });
   }
 
   Future<Map<String, dynamic>> login(Map<String, dynamic> payload) async {
-    final client = await _client;
-    return _decode(await client.post(Uri.parse('$serverUrl/api/login'),
-        headers: _headers, body: jsonEncode(payload)));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(Uri.parse('$serverUrl/api/login'),
+          headers: _headers, body: jsonEncode(payload)));
+    });
   }
 
   Future<Map<String, dynamic>> forgotPassword(String email) async {
-    final client = await _client;
-    return _decode(await client.post(
-        Uri.parse('$serverUrl/api/forgot-password'),
-        headers: _headers,
-        body: jsonEncode({'email': email})));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+          Uri.parse('$serverUrl/api/forgot-password'),
+          headers: _headers,
+          body: jsonEncode({'email': email})));
+    });
   }
 
   Future<List<dynamic>> searchTechnicians({
@@ -64,25 +70,31 @@ class ApiService {
       'available': '$available',
       'minRating': '$minRating',
     });
-    final client = await _client;
-    final body = await _decodeAny(await client.get(uri));
-    return body is List ? body : [];
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      final body = await _decodeAny(await client.get(uri));
+      return body is List ? body : [];
+    });
   }
 
   Future<Map<String, dynamic>> requestTechnician(
       Map<String, dynamic> payload) async {
-    final client = await _client;
-    return _decode(await client.post(Uri.parse('$serverUrl/api/requests'),
-        headers: _headers, body: jsonEncode(payload)));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(Uri.parse('$serverUrl/api/requests'),
+          headers: _headers, body: jsonEncode(payload)));
+    });
   }
 
   Future<Map<String, dynamic>> respondToRequest(
       String requestId, Map<String, dynamic> payload) async {
-    final client = await _client;
-    return _decode(await client.patch(
-        Uri.parse('$serverUrl/api/requests/$requestId/respond'),
-        headers: _headers,
-        body: jsonEncode(payload)));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.patch(
+          Uri.parse('$serverUrl/api/requests/$requestId/respond'),
+          headers: _headers,
+          body: jsonEncode(payload)));
+    });
   }
 
   Future<List<dynamic>> getHistory(
@@ -95,59 +107,61 @@ class ApiService {
       params['technicianId'] = technicianId;
     }
     if (status != null && status.isNotEmpty) params['status'] = status;
-    final client = await _client;
-    final body = await _decodeAny(await client.get(
-        Uri.parse('$serverUrl/api/requests/history')
-            .replace(queryParameters: params)));
-    return body is List ? body : [];
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      final body = await _decodeAny(await client.get(
+          Uri.parse('$serverUrl/api/requests/history')
+              .replace(queryParameters: params)));
+      return body is List ? body : [];
+    });
   }
 
   Future<Map<String, dynamic>> updateTechnicianLocation(
       String technicianId, double lat, double lon, bool available) async {
-    final client = await _client;
-    try {
+    return _withNetworkErrors(() async {
+      final client = await _client;
       return _decode(await client.patch(
         Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
         headers: _headers,
         body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
       ));
-    } on Exception catch (error) {
-      _throwConnectionFailureForLocation(error);
-    }
+    });
   }
 
   Future<Map<String, dynamic>> updateUserLocation(
       String userId, double lat, double lon) async {
-    final client = await _client;
-    try {
+    return _withNetworkErrors(() async {
+      final client = await _client;
       return _decode(await client.patch(
         Uri.parse('$serverUrl/api/users/$userId/location'),
         headers: _headers,
         body: jsonEncode({'lat': lat, 'lon': lon}),
       ));
-    } on Exception catch (error) {
-      _throwConnectionFailureForLocation(error);
-    }
+    });
   }
 
   Future<Map<String, dynamic>> updateAvailability(
       String technicianId, bool available) async {
-    final client = await _client;
-    return _decode(await client.patch(
-      Uri.parse('$serverUrl/api/technicians/$technicianId/availability'),
-      headers: _headers,
-      body: jsonEncode({'available': available}),
-    ));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.patch(
+        Uri.parse('$serverUrl/api/technicians/$technicianId/availability'),
+        headers: _headers,
+        body: jsonEncode({'available': available}),
+      ));
+    });
   }
 
   Future<Map<String, dynamic>> refreshRegistrationPayment(
       String technicianId) async {
-    final client = await _client;
-    return _decode(await client.get(
-      Uri.parse(
-          '$serverUrl/api/technicians/$technicianId/registration-payment'),
-      headers: _headers,
-    ));
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.get(
+        Uri.parse(
+            '$serverUrl/api/technicians/$technicianId/registration-payment'),
+        headers: _headers,
+      ));
+    });
   }
 
   Future<dynamic> _decodeAny(http.Response res) async {
@@ -179,17 +193,35 @@ class ApiService {
     }
   }
 
-  Never _throwConnectionFailureForLocation(Exception error) {
-    final message = error.toString();
+  Future<T> _withNetworkErrors<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } on Exception catch (error) {
+      _throwNetworkFailure(error);
+    }
+  }
+
+  Never _throwNetworkFailure(Exception error) {
+    if (error is ApiException) {
+      throw error;
+    }
+
+    final message = error.toString().toLowerCase();
     if (error is http.ClientException ||
-        message.contains('SocketException') ||
-        message.contains('Connection closed') ||
-        message.contains('Client connection closed') ||
-        message.contains('Failed host lookup') ||
-        message.contains('Connection refused') ||
-        message.contains('Connection reset')) {
+        message.contains('socketexception') ||
+        message.contains('socketfailed') ||
+        message.contains('connection closed') ||
+        message.contains('connection reset') ||
+        message.contains('clientexception') ||
+        message.contains('clientconnection') ||
+        message.contains('client connection closed') ||
+        message.contains('closed before full header') ||
+        message.contains('failed host lookup') ||
+        message.contains('host lookup') ||
+        message.contains('no address') ||
+        message.contains('connection refused')) {
       throw const ApiException(
-        'Connection failure',
+        'We could not reach the server. Please check your internet connection and try again.',
         0,
         code: 'connection_failure',
       );

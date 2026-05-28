@@ -1,4 +1,7 @@
 *
 !private/
 !public/
+!firebase/
+!firebase/google-services.json
+!firebase/GoogleService-Info.plist
 !.gitignore
