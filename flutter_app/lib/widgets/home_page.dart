@@ -786,10 +786,12 @@ class _HomePageState extends State<HomePage> {
     final etaMinutes =
         distance == null ? null : math.max(1, (distance / 25 * 60).round());
     final phone = techMap['phone']?.toString() ?? '';
+    final etaLabel =
+        etaMinutes == null ? l10n.etaPending : l10n.etaMinutes(etaMinutes);
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -819,76 +821,47 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 132,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _RouteMiniMapPainter(hasRoute: distance != null),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFDCE4E8)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        child: Text(
-                          etaMinutes == null
-                              ? l10n.etaPending
-                              : l10n.etaMinutes(etaMinutes),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _LocationChip(
-                  icon: Icons.person_pin_circle_outlined,
-                  label: l10n.clientLocation,
-                  value: _formatLocation(clientMap),
-                ),
-                _LocationChip(
-                  icon: Icons.engineering_outlined,
-                  label: l10n.technicianLocation,
-                  value: _formatLocation(techLocation),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed:
-                      phone.isEmpty ? null : () => _callTechnician(phone),
-                  icon: const Icon(Icons.call),
-                  label: Text(phone.isEmpty ? l10n.phoneUnavailable : phone),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _endRequest(request),
-                  icon: const Icon(Icons.task_alt),
-                  label: Text(l10n.endRequest),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _reportAbuse(request),
-                  icon: const Icon(Icons.report_outlined),
-                  label: Text(l10n.reportAbuse),
-                ),
-              ],
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 620;
+                final map = _TrackingMap(
+                  hasRoute: distance != null,
+                  etaLabel: etaLabel,
+                  height: wide ? 214 : 154,
+                );
+                final details = _TrackingDetails(
+                  clientLabel: l10n.clientLocation,
+                  clientValue: _formatLocation(clientMap),
+                  technicianLabel: l10n.technicianLocation,
+                  technicianValue: _formatLocation(techLocation),
+                  phoneLabel: phone.isEmpty ? l10n.phoneUnavailable : phone,
+                  onCall: phone.isEmpty ? null : () => _callTechnician(phone),
+                  onEnd: () => _endRequest(request),
+                  onReport: () => _reportAbuse(request),
+                  endLabel: l10n.endRequest,
+                  reportLabel: l10n.reportAbuse,
+                );
+
+                if (!wide) {
+                  return Column(
+                    children: [
+                      map,
+                      const SizedBox(height: 10),
+                      details,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 5, child: map),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 4, child: details),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1277,6 +1250,139 @@ class _StatusIcon extends StatelessWidget {
   }
 }
 
+class _TrackingMap extends StatelessWidget {
+  final bool hasRoute;
+  final String etaLabel;
+  final double height;
+
+  const _TrackingMap({
+    required this.hasRoute,
+    required this.etaLabel,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: CustomPaint(
+        painter: _RouteMiniMapPainter(hasRoute: hasRoute),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.topRight,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFDCE4E8)),
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  etaLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackingDetails extends StatelessWidget {
+  final String clientLabel;
+  final String clientValue;
+  final String technicianLabel;
+  final String technicianValue;
+  final String phoneLabel;
+  final VoidCallback? onCall;
+  final VoidCallback onEnd;
+  final VoidCallback onReport;
+  final String endLabel;
+  final String reportLabel;
+
+  const _TrackingDetails({
+    required this.clientLabel,
+    required this.clientValue,
+    required this.technicianLabel,
+    required this.technicianValue,
+    required this.phoneLabel,
+    required this.onCall,
+    required this.onEnd,
+    required this.onReport,
+    required this.endLabel,
+    required this.reportLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _LocationChip(
+          icon: Icons.person_pin_circle_outlined,
+          label: clientLabel,
+          value: clientValue,
+        ),
+        const SizedBox(height: 8),
+        _LocationChip(
+          icon: Icons.engineering_outlined,
+          label: technicianLabel,
+          value: technicianValue,
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 330;
+            final buttons = [
+              FilledButton.icon(
+                onPressed: onCall,
+                icon: const Icon(Icons.call),
+                label: Text(phoneLabel, overflow: TextOverflow.ellipsis),
+              ),
+              OutlinedButton.icon(
+                onPressed: onEnd,
+                icon: const Icon(Icons.task_alt),
+                label: Text(endLabel, overflow: TextOverflow.ellipsis),
+              ),
+              OutlinedButton.icon(
+                onPressed: onReport,
+                icon: const Icon(Icons.report_outlined),
+                label: Text(reportLabel, overflow: TextOverflow.ellipsis),
+              ),
+            ];
+
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final button in buttons) ...[
+                    SizedBox(width: double.infinity, child: button),
+                    if (button != buttons.last) const SizedBox(height: 8),
+                  ],
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                for (final button in buttons) ...[
+                  Expanded(child: button),
+                  if (button != buttons.last) const SizedBox(width: 8),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _LocationChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1291,6 +1397,7 @@ class _LocationChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFFF5F7F8),
@@ -1298,20 +1405,25 @@ class _LocationChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 18, color: const Color(0xFF697781)),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF697781),
-                      fontWeight: FontWeight.w700)),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-            ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF697781),
+                        fontWeight: FontWeight.w700)),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
           ),
         ],
       ),
