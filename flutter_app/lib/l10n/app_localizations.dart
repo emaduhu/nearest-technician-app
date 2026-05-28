@@ -170,6 +170,14 @@ class AppLocalizations {
       isSwahili ? 'Mpe fundi alama' : 'Rate the technician';
   String get reportTechnician =>
       isSwahili ? 'Ripoti kuhusu fundi' : 'Report the technician';
+  String get reportAbuse => isSwahili ? 'Ripoti unyanyasaji' : 'Report abuse';
+  String get reportAbuseTitle => isSwahili
+      ? 'Ripoti unyanyasaji au tabia mbaya'
+      : 'Report abuse or misconduct';
+  String get reportAbuseDetails =>
+      isSwahili ? 'Eleza kilichotokea' : 'Describe what happened';
+  String get reportSubmitted =>
+      isSwahili ? 'Ripoti imetumwa' : 'Report submitted';
   String get submit => isSwahili ? 'Tuma' : 'Submit';
   String get requestEnded =>
       isSwahili ? 'Ombi limekamilika' : 'Request completed';

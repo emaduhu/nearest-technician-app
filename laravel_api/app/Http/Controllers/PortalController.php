@@ -107,6 +107,21 @@ class PortalController extends Controller
                 ->orderByDesc('count')
                 ->limit(8)
                 ->get(),
+            'abuseReports' => DB::table('abuse_reports')
+                ->join('service_requests', 'abuse_reports.service_request_id', '=', 'service_requests.id')
+                ->leftJoin('users as reporter_users', 'abuse_reports.reporter_user_id', '=', 'reporter_users.id')
+                ->leftJoin('technicians as reporter_technicians', 'abuse_reports.reporter_technician_id', '=', 'reporter_technicians.id')
+                ->leftJoin('users as reported_users', 'abuse_reports.reported_user_id', '=', 'reported_users.id')
+                ->leftJoin('technicians as reported_technicians', 'abuse_reports.reported_technician_id', '=', 'reported_technicians.id')
+                ->select([
+                    'abuse_reports.*',
+                    'service_requests.skill',
+                    DB::raw('COALESCE(reporter_users.name, reporter_technicians.name) as reporter_name'),
+                    DB::raw('COALESCE(reported_users.name, reported_technicians.name) as reported_name'),
+                ])
+                ->orderByDesc('abuse_reports.created_at')
+                ->limit(8)
+                ->get(),
         ]);
     }
 

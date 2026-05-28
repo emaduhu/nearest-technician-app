@@ -360,6 +360,57 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _reportAbuse(Map<String, dynamic> request) async {
+    final l10n = AppLocalizations.of(context);
+    final detailsCtrl = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(l10n.reportAbuseTitle),
+          content: TextField(
+            controller: detailsCtrl,
+            maxLines: 4,
+            decoration: InputDecoration(
+              labelText: l10n.reportAbuseDetails,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.back),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.submit),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (submitted != true || detailsCtrl.text.trim().isEmpty) {
+      detailsCtrl.dispose();
+      return;
+    }
+
+    try {
+      await _api.reportRequest(request['id'].toString(), {
+        'reporterRole': _isTechnician ? 'technician' : 'client',
+        if (_isTechnician && _technician != null)
+          'technicianId': _technician!['id'],
+        if (!_isTechnician) 'clientId': _user['id'],
+        'reason': 'abuse_or_misconduct',
+        'details': detailsCtrl.text.trim(),
+      });
+      detailsCtrl.dispose();
+      setState(() => _status = l10n.reportSubmitted);
+    } catch (e) {
+      detailsCtrl.dispose();
+      setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Future<void> _toggleAvailability(bool value) async {
     if (_technician == null) return;
     final l10n = AppLocalizations.of(context);
@@ -832,6 +883,11 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.task_alt),
                   label: Text(l10n.endRequest),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () => _reportAbuse(request),
+                  icon: const Icon(Icons.report_outlined),
+                  label: Text(l10n.reportAbuse),
+                ),
               ],
             ),
           ],
@@ -926,7 +982,18 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () => _respond(request, 'rejected'),
                     icon: const Icon(Icons.close),
                   ),
+                  IconButton(
+                    tooltip: l10n.reportAbuse,
+                    onPressed: () => _reportAbuse(request),
+                    icon: const Icon(Icons.report_outlined),
+                  ),
                 ],
+              ),
+            if (!actions)
+              IconButton(
+                tooltip: l10n.reportAbuse,
+                onPressed: () => _reportAbuse(request),
+                icon: const Icon(Icons.report_outlined),
               ),
           ],
         ),

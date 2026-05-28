@@ -108,6 +108,17 @@ class ApiService {
     });
   }
 
+  Future<Map<String, dynamic>> reportRequest(
+      String requestId, Map<String, dynamic> payload) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+          Uri.parse('$serverUrl/api/requests/$requestId/reports'),
+          headers: _headers,
+          body: jsonEncode(payload)));
+    });
+  }
+
   Future<List<dynamic>> getHistory(
       {String? clientId, String? technicianId, String? status}) async {
     final params = <String, String>{};

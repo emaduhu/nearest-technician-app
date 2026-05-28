@@ -200,6 +200,21 @@
                     <button class="button primary" type="submit" @disabled($notificationUsers->isEmpty())>Send test notification</button>
                 </form>
             </article>
+
+            <article class="panel">
+                <h2>Abuse & misconduct reports</h2>
+                <div class="list">
+                    @forelse ($abuseReports as $report)
+                        <div class="item">
+                            <strong>{{ $report->reporter_name ?? ucfirst($report->reporter_role) }} reported {{ $report->reported_name ?? ucfirst($report->reported_role) }}</strong>
+                            <span>{{ $report->skill ?: 'General service' }} · {{ $report->reason }} · {{ \Illuminate\Support\Carbon::parse($report->created_at)->diffForHumans() }}</span>
+                            <span>{{ $report->details }}</span>
+                        </div>
+                    @empty
+                        <p>No abuse or misconduct reports.</p>
+                    @endforelse
+                </div>
+            </article>
         </aside>
     </section>
 </main>

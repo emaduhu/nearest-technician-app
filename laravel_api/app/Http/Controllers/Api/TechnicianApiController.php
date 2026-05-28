@@ -586,6 +586,67 @@ class TechnicianApiController extends Controller
         ]);
     }
 
+    public function reportRequest(Request $request, ServiceRequest $serviceRequest): JsonResponse
+    {
+        $data = $request->validate([
+            'reporterRole' => ['required', Rule::in(['client', 'technician'])],
+            'clientId' => ['nullable', 'integer', 'exists:users,id'],
+            'technicianId' => ['nullable', 'integer', 'exists:technicians,id'],
+            'reason' => ['nullable', 'string', 'max:120'],
+            'details' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $reporterRole = $data['reporterRole'];
+        if ($reporterRole === 'client') {
+            if ((int) ($data['clientId'] ?? 0) !== (int) $serviceRequest->client_id) {
+                return response()->json(['error' => 'Request belongs to another client'], 403);
+            }
+
+            $report = [
+                'reporter_role' => 'client',
+                'reporter_user_id' => $serviceRequest->client_id,
+                'reporter_technician_id' => null,
+                'reported_role' => 'technician',
+                'reported_user_id' => null,
+                'reported_technician_id' => $serviceRequest->technician_id,
+            ];
+        } else {
+            if ((int) ($data['technicianId'] ?? 0) !== (int) $serviceRequest->technician_id) {
+                return response()->json(['error' => 'Request is assigned to another technician'], 403);
+            }
+
+            $report = [
+                'reporter_role' => 'technician',
+                'reporter_user_id' => null,
+                'reporter_technician_id' => $serviceRequest->technician_id,
+                'reported_role' => 'client',
+                'reported_user_id' => $serviceRequest->client_id,
+                'reported_technician_id' => null,
+            ];
+        }
+
+        $reportId = DB::table('abuse_reports')->insertGetId([
+            'service_request_id' => $serviceRequest->id,
+            ...$report,
+            'reason' => $data['reason'] ?? 'abuse_or_misconduct',
+            'details' => $data['details'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Log::warning('Abuse or misconduct report submitted.', [
+            'report_id' => $reportId,
+            'request_id' => $serviceRequest->id,
+            'reporter_role' => $reporterRole,
+            'reported_role' => $report['reported_role'],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'reportId' => (string) $reportId,
+        ], 201);
+    }
+
     public function requestHistory(Request $request): JsonResponse
     {
         $data = $request->validate([

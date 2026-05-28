@@ -20,6 +20,7 @@ Route::patch('/technicians/{technician}/availability', [TechnicianApiController:
 Route::post('/requests', [TechnicianApiController::class, 'createRequest']);
 Route::patch('/requests/{serviceRequest}/respond', [TechnicianApiController::class, 'respondToRequest']);
 Route::patch('/requests/{serviceRequest}/complete', [TechnicianApiController::class, 'completeRequest']);
+Route::post('/requests/{serviceRequest}/reports', [TechnicianApiController::class, 'reportRequest']);
 Route::get('/requests/history', [TechnicianApiController::class, 'requestHistory']);
 
 Route::post('/request', [TechnicianApiController::class, 'createRequest']);
