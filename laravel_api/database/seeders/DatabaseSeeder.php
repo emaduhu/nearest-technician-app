@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Technician;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,7 +17,7 @@ class DatabaseSeeder extends Seeder
                 'role' => 'admin',
                 'name' => env('PORTAL_ADMIN_NAME', 'Portal Administrator'),
                 'phone' => env('PORTAL_ADMIN_PHONE', '+255700000000'),
-                'password' => env('PORTAL_ADMIN_PASSWORD', 'password'),
+                'password' => Hash::make((string) env('PORTAL_ADMIN_PASSWORD', 'password')),
             ],
         );
 
@@ -54,7 +55,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'client',
             'name' => 'Demo Client',
             'phone' => '+255700200001',
-            'password' => 'password',
+            'password' => Hash::make('password'),
             'last_location' => ['latitude' => -6.8, 'longitude' => 39.25, 'updatedAt' => now()->toISOString()],
         ]);
 
@@ -63,7 +64,7 @@ class DatabaseSeeder extends Seeder
                 'role' => 'technician',
                 'name' => $row['name'],
                 'phone' => $row['phone'],
-                'password' => 'password',
+                'password' => Hash::make('password'),
                 'last_location' => [
                     'latitude' => $row['latitude'],
                     'longitude' => $row['longitude'],
@@ -75,7 +76,7 @@ class DatabaseSeeder extends Seeder
                 'user_id' => $user->id,
                 'name' => $row['name'],
                 'phone' => $row['phone'],
-                'password' => 'password',
+                'password' => Hash::make('password'),
                 'skills' => $row['skills'],
                 'latitude' => $row['latitude'],
                 'longitude' => $row['longitude'],
