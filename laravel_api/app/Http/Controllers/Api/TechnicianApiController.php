@@ -312,9 +312,41 @@ class TechnicianApiController extends Controller
             Technician::where('user_id', $user->id)->update([
                 'latitude' => $location['latitude'],
                 'longitude' => $location['longitude'],
+                'device_token' => $user->device_token,
                 'last_seen_at' => now(),
             ]);
         }
+
+        return response()->json(['ok' => true, 'user' => $this->userDto($user->fresh())]);
+    }
+
+    public function updateDeviceToken(Request $request, string $user): JsonResponse
+    {
+        $user = User::find($user);
+        if (! $user) {
+            return response()->json([
+                'error' => 'Account not found. Please sign in again.',
+                'code' => 'account_not_found',
+            ], 404);
+        }
+
+        $data = $request->validate([
+            'token' => ['nullable', 'string'],
+            'deviceToken' => ['nullable', 'string'],
+        ]);
+
+        $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
+        if (blank($deviceToken)) {
+            return response()->json([
+                'error' => 'Device notification token is required.',
+                'code' => 'device_token_required',
+            ], 422);
+        }
+
+        $user->update(['device_token' => $deviceToken]);
+        Technician::where('user_id', $user->id)
+            ->orWhere('email', $user->email)
+            ->update(['device_token' => $deviceToken]);
 
         return response()->json(['ok' => true, 'user' => $this->userDto($user->fresh())]);
     }

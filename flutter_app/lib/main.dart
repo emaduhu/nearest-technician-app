@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'services/update_check_service.dart';
+import 'services/fcm_service.dart';
 import 'widgets/register_page.dart';
 import 'widgets/home_page.dart';
 import 'package:upgrader/upgrader.dart';
@@ -10,6 +11,7 @@ import 'package:upgrader/upgrader.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  FcmService.registerBackgroundHandler();
   runApp(const MyApp());
 }
 

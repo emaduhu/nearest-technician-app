@@ -41,6 +41,7 @@ class _HomePageState extends State<HomePage> {
   bool _onlyAvailable = true;
   double _maxDistanceKm = 25;
   double _minRating = 0;
+  String? _deviceToken;
   Map<String, dynamic>? _registrationPayment;
   List<dynamic> _results = [];
   List<dynamic> _history = [];
@@ -73,25 +74,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initializeForegroundUpdates() async {
-    await _fcm.init((data) {
+    final token = await _fcm.init((data) {
       if (!mounted) return;
       final type = data['type']?.toString() ?? '';
       if (type == 'request_response' ||
           type == 'tech_request' ||
           type == 'service_request' ||
-          type == 'technician_response') {
+          type == 'technician_response' ||
+          type == 'portal_test') {
         final l10n = AppLocalizations.of(context);
         setState(() {
-          _status = type == 'request_response' || type == 'technician_response'
-              ? '${l10n.requestUpdated}: ${l10n.statusLabel(data['status']?.toString() ?? l10n.newStatus)}'
-              : l10n.newRequestReceived;
+          if (type == 'portal_test') {
+            _status = data['body']?.toString() ?? l10n.newStatus;
+          } else if (type == 'request_response' ||
+              type == 'technician_response') {
+            _status =
+                '${l10n.requestUpdated}: ${l10n.statusLabel(data['status']?.toString() ?? l10n.newStatus)}';
+          } else {
+            _status = l10n.newRequestReceived;
+          }
         });
         _loadHistory();
       }
-    });
+    }, onTokenRefresh: _saveDeviceToken);
+    if (token != null && token.isNotEmpty) {
+      await _saveDeviceToken(token);
+    }
     _historyTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _loadHistory();
     });
+  }
+
+  Future<void> _saveDeviceToken(String token) async {
+    _deviceToken = token;
+    try {
+      await _api.updateDeviceToken(_user['id'].toString(), token);
+    } catch (_) {
+      // Location updates also carry the token, so this can be retried quietly.
+    }
   }
 
   Future<void> _startLiveLocation() async {
@@ -105,10 +125,19 @@ class _HomePageState extends State<HomePage> {
       try {
         if (_isTechnician && _technician != null) {
           await _api.updateTechnicianLocation(
-              _technician!['id'], pos.latitude, pos.longitude, _available);
+            _technician!['id'].toString(),
+            pos.latitude,
+            pos.longitude,
+            _available,
+            deviceToken: _deviceToken,
+          );
         } else {
           await _api.updateUserLocation(
-              _user['id'], pos.latitude, pos.longitude);
+            _user['id'].toString(),
+            pos.latitude,
+            pos.longitude,
+            deviceToken: _deviceToken,
+          );
         }
         if (mounted) {
           setState(

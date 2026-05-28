@@ -12,6 +12,7 @@ Route::post('/forgot-password', [TechnicianApiController::class, 'forgotPassword
 Route::post('/reset-password', [TechnicianApiController::class, 'resetPassword']);
 Route::get('/technicians/search', [TechnicianApiController::class, 'searchTechnicians']);
 Route::get('/technicians/{technician}/registration-payment', [TechnicianApiController::class, 'registrationPaymentStatus']);
+Route::patch('/users/{user}/device-token', [TechnicianApiController::class, 'updateDeviceToken']);
 Route::patch('/users/{user}/location', [TechnicianApiController::class, 'updateUserLocation']);
 Route::patch('/technicians/{technician}/location', [TechnicianApiController::class, 'updateTechnicianLocation']);
 Route::patch('/techmicians/{technician}/location', [TechnicianApiController::class, 'updateTechnicianLocation']);

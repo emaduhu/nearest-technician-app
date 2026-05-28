@@ -45,6 +45,10 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _initializeFcm() async {
     final token = await _fcm.init((data) {
       debugPrint('FCM data: $data');
+    }, onTokenRefresh: (token) {
+      if (mounted) {
+        setState(() => _token = token);
+      }
     });
     if (mounted) {
       setState(() => _token = token);

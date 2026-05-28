@@ -117,25 +117,50 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateTechnicianLocation(
-      String technicianId, double lat, double lon, bool available) async {
+      String technicianId, double lat, double lon, bool available,
+      {String? deviceToken}) async {
     return _withNetworkErrors(() async {
       final client = await _client;
       return _decode(await client.patch(
         Uri.parse('$serverUrl/api/technicians/$technicianId/location'),
         headers: _headers,
-        body: jsonEncode({'lat': lat, 'lon': lon, 'available': available}),
+        body: jsonEncode({
+          'lat': lat,
+          'lon': lon,
+          'available': available,
+          if (deviceToken != null && deviceToken.isNotEmpty)
+            'deviceToken': deviceToken,
+        }),
       ));
     });
   }
 
   Future<Map<String, dynamic>> updateUserLocation(
-      String userId, double lat, double lon) async {
+      String userId, double lat, double lon,
+      {String? deviceToken}) async {
     return _withNetworkErrors(() async {
       final client = await _client;
       return _decode(await client.patch(
         Uri.parse('$serverUrl/api/users/$userId/location'),
         headers: _headers,
-        body: jsonEncode({'lat': lat, 'lon': lon}),
+        body: jsonEncode({
+          'lat': lat,
+          'lon': lon,
+          if (deviceToken != null && deviceToken.isNotEmpty)
+            'deviceToken': deviceToken,
+        }),
+      ));
+    });
+  }
+
+  Future<Map<String, dynamic>> updateDeviceToken(
+      String userId, String deviceToken) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.patch(
+        Uri.parse('$serverUrl/api/users/$userId/device-token'),
+        headers: _headers,
+        body: jsonEncode({'deviceToken': deviceToken}),
       ));
     });
   }

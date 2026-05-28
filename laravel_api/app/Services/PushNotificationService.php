@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class PushNotificationService
@@ -47,11 +48,30 @@ class PushNotificationService
                             'priority' => 'HIGH',
                             'notification' => ['sound' => 'default'],
                         ],
+                        'apns' => [
+                            'payload' => [
+                                'aps' => ['sound' => 'default'],
+                            ],
+                        ],
                     ],
                 ]);
 
+            if ($response->failed()) {
+                Log::warning('Firebase Cloud Messaging v1 delivery failed.', [
+                    'project_id' => $projectId,
+                    'status' => $response->status(),
+                    'token' => $this->tokenHint($token),
+                    'body' => $response->json() ?: $response->body(),
+                ]);
+            }
+
             return $response->successful();
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            Log::warning('Firebase Cloud Messaging v1 delivery exception.', [
+                'token' => $this->tokenHint($token),
+                'message' => $exception->getMessage(),
+            ]);
+
             return false;
         }
     }
@@ -72,8 +92,21 @@ class PushNotificationService
                     'data' => collect($data)->map(fn ($value) => (string) $value)->all(),
                 ]);
 
+            if ($response->failed()) {
+                Log::warning('Firebase Cloud Messaging legacy delivery failed.', [
+                    'status' => $response->status(),
+                    'token' => $this->tokenHint($token),
+                    'body' => $response->json() ?: $response->body(),
+                ]);
+            }
+
             return $response->successful();
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            Log::warning('Firebase Cloud Messaging legacy delivery exception.', [
+                'token' => $this->tokenHint($token),
+                'message' => $exception->getMessage(),
+            ]);
+
             return false;
         }
     }
@@ -174,5 +207,10 @@ class PushNotificationService
     private function base64Url(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function tokenHint(string $token): string
+    {
+        return substr($token, 0, 10).'...'.substr($token, -6);
     }
 }
