@@ -435,19 +435,43 @@ class TechnicianApiController extends Controller
             'distance_km' => $distance === null ? null : round($distance, 2),
         ]);
 
-        $pushed = $this->push->send($technician->device_token, [
-            'title' => 'New service request',
-            'body' => "{$client->name} requested {$serviceRequest->skill}",
-        ], [
+        $technicianTitle = 'New service request';
+        $technicianBody = "{$client->name} requested {$serviceRequest->skill}. Open the app to accept or reject.";
+        $technicianData = [
             'requestId' => $serviceRequest->id,
             'type' => 'tech_request',
             'clientId' => $client->id,
+            'clientName' => $client->name,
+            'technicianId' => $technician->id,
             'skill' => $serviceRequest->skill,
-        ]);
+            'title' => $technicianTitle,
+            'body' => $technicianBody,
+            'actions' => 'accept,reject',
+        ];
+
+        $technicianToken = $technician->device_token;
+        $pushed = $this->push->send($technicianToken, [
+            'title' => $technicianTitle,
+            'body' => $technicianBody,
+        ], $technicianData);
+
+        if (! $pushed) {
+            Log::warning('New request notification was not delivered to the technician.', [
+                'request_id' => $serviceRequest->id,
+                'client_id' => $client->id,
+                'technician_id' => $technician->id,
+                'has_technician_token' => filled($technicianToken),
+            ]);
+        }
 
         return response()->json([
             'ok' => true,
             'pushed' => $pushed,
+            'technicianNotification' => [
+                'required' => true,
+                'sent' => $pushed,
+                'hasToken' => filled($technicianToken),
+            ],
             'request' => $this->requestDto($serviceRequest->load(['client', 'technician'])),
         ], 201);
     }
@@ -474,12 +498,17 @@ class TechnicianApiController extends Controller
 
         $serviceRequest->load(['client', 'technician']);
         $technicianName = $serviceRequest->technician?->name ?? 'Technician';
-        $notificationTitle = $status === 'accepted'
-            ? 'Technician accepted your request'
-            : 'Technician response';
-        $notificationBody = $status === 'accepted'
-            ? "{$technicianName} accepted your request and is on the way."
-            : "{$technicianName} {$status} your request";
+        $clientNotificationRequired = in_array($status, ['accepted', 'rejected'], true);
+        $notificationTitle = match ($status) {
+            'accepted' => 'Technician accepted your request',
+            'rejected' => 'Technician rejected your request',
+            default => 'Technician response',
+        };
+        $notificationBody = match ($status) {
+            'accepted' => "{$technicianName} accepted your request and is on the way.",
+            'rejected' => "{$technicianName} rejected your request. Please choose another technician.",
+            default => "{$technicianName} {$status} your request",
+        };
         $notificationData = [
             'requestId' => $serviceRequest->id,
             'type' => 'request_response',
@@ -496,11 +525,12 @@ class TechnicianApiController extends Controller
             'body' => $notificationBody,
         ], $notificationData);
 
-        if ($status === 'accepted' && ! $pushed) {
-            Log::warning('Accepted request notification was not delivered to the client.', [
+        if ($clientNotificationRequired && ! $pushed) {
+            Log::warning('Technician response notification was not delivered to the client.', [
                 'request_id' => $serviceRequest->id,
                 'client_id' => $serviceRequest->client_id,
                 'technician_id' => $serviceRequest->technician_id,
+                'status' => $status,
                 'has_client_token' => filled($clientToken),
             ]);
         }
@@ -509,7 +539,7 @@ class TechnicianApiController extends Controller
             'ok' => true,
             'pushed' => $pushed,
             'clientNotification' => [
-                'required' => $status === 'accepted',
+                'required' => $clientNotificationRequired,
                 'sent' => $pushed,
                 'hasToken' => filled($clientToken),
             ],

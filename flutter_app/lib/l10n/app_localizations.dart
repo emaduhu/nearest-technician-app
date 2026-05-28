@@ -92,9 +92,8 @@ class AppLocalizations {
   String get sessionExpired => isSwahili
       ? 'Muda wa akaunti umeisha. Tafadhali ingia tena.'
       : 'Your session is no longer valid. Please sign in again.';
-  String get liveLocationUpdateFailed => isSwahili
-      ? 'Tatizo la muunganisho'
-      : 'Connection failure';
+  String get liveLocationUpdateFailed =>
+      isSwahili ? 'Tatizo la muunganisho' : 'Connection failure';
   String get searchingTechnicians =>
       isSwahili ? 'Inatafuta mafundi...' : 'Searching technicians...';
   String get noTechMatch => isSwahili
@@ -109,6 +108,9 @@ class AppLocalizations {
   String get requestSavedNoPush => isSwahili
       ? 'Ombi limehifadhiwa. Arifa haikufika.'
       : 'Request saved. Push notification was not delivered.';
+  String get clientNotificationNotDelivered => isSwahili
+      ? 'Jibu limehifadhiwa. Arifa kwa mteja haikufika.'
+      : 'Response saved. Client notification was not delivered.';
   String get technicianOnWay =>
       isSwahili ? 'Fundi yuko njiani' : 'Technician is on the way';
   String requestStatus(String status) => isSwahili

@@ -89,11 +89,12 @@ class _HomePageState extends State<HomePage> {
           } else if (type == 'request_response' ||
               type == 'technician_response') {
             final status = data['status']?.toString() ?? l10n.newStatus;
-            _status = status == 'accepted' && data['body'] != null
+            _status = (status == 'accepted' || status == 'rejected') &&
+                    data['body'] != null
                 ? data['body'].toString()
                 : '${l10n.requestUpdated}: ${l10n.statusLabel(status)}';
           } else {
-            _status = l10n.newRequestReceived;
+            _status = data['body']?.toString() ?? l10n.newRequestReceived;
           }
         });
         _loadHistory();
@@ -243,7 +244,8 @@ class _HomePageState extends State<HomePage> {
         'lat': pos.latitude,
         'lon': pos.longitude,
       });
-      setState(() => _status = response['pushed'] == true
+      setState(() => _status = response['technicianNotification'] is Map &&
+              response['technicianNotification']['sent'] == true
           ? l10n.requestSent(tech['name'] ?? l10n.technician)
           : l10n.requestSavedNoPush);
       await _loadHistory();
@@ -255,12 +257,17 @@ class _HomePageState extends State<HomePage> {
   Future<void> _respond(Map<String, dynamic> request, String status) async {
     try {
       final l10n = AppLocalizations.of(context);
-      await _api.respondToRequest(request['id'], {
+      final response = await _api.respondToRequest(request['id'], {
         'technicianId': _technician!['id'],
         'status': status,
         'message': status == 'accepted' ? l10n.technicianOnWay : '',
       });
-      setState(() => _status = l10n.requestStatus(status));
+      final notification = response['clientNotification'];
+      setState(() => _status = notification is Map &&
+              notification['required'] == true &&
+              notification['sent'] != true
+          ? l10n.clientNotificationNotDelivered
+          : l10n.requestStatus(status));
       await _loadHistory();
     } catch (e) {
       setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
