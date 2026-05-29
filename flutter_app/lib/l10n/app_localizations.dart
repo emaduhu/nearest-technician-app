@@ -178,6 +178,8 @@ class AppLocalizations {
       isSwahili ? 'Eleza kilichotokea' : 'Describe what happened';
   String get reportSubmitted =>
       isSwahili ? 'Ripoti imetumwa' : 'Report submitted';
+  String get submittingReport =>
+      isSwahili ? 'Inatuma ripoti...' : 'Submitting report...';
   String get submit => isSwahili ? 'Tuma' : 'Submit';
   String get requestEnded =>
       isSwahili ? 'Ombi limekamilika' : 'Request completed';

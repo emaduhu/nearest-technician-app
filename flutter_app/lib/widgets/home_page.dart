@@ -468,6 +468,13 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _status = l10n.submittingReport;
+      });
+    }
+
     try {
       await _api.reportRequest(request['id'].toString(), {
         'reporterRole': _isTechnician ? 'technician' : 'client',
@@ -478,10 +485,18 @@ class _HomePageState extends State<HomePage> {
         'details': detailsCtrl.text.trim(),
       });
       detailsCtrl.dispose();
-      setState(() => _status = l10n.reportSubmitted);
+      if (mounted) {
+        setState(() => _status = l10n.reportSubmitted);
+      }
     } catch (e) {
       detailsCtrl.dispose();
-      setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+      if (mounted) {
+        setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -666,6 +681,10 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         if (_registrationPayment != null) _registrationPaymentCard(),
+        if (_loading)
+          const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: LinearProgressIndicator()),
         if (_status.isNotEmpty) _InlineStatus(message: _status),
         const SizedBox(height: 12),
         _SectionTitle(
@@ -857,6 +876,8 @@ class _HomePageState extends State<HomePage> {
       _toDouble(techLocation['latitude']),
       _toDouble(techLocation['longitude']),
     );
+    final initialDistance = _toDouble(request['distanceKm']);
+    final routeProgress = _routeProgress(initialDistance, distance);
     final etaMinutes =
         distance == null ? null : math.max(1, (distance / 25 * 60).round());
     final phone = techMap['phone']?.toString() ?? '';
@@ -902,6 +923,7 @@ class _HomePageState extends State<HomePage> {
                 final map = _TrackingMap(
                   hasRoute: distance != null,
                   etaLabel: etaLabel,
+                  progress: routeProgress,
                   height: wide ? 214 : 154,
                 );
                 final details = _TrackingDetails(
@@ -965,6 +987,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   double _toRad(double value) => value * math.pi / 180;
+
+  double _routeProgress(double? initialDistance, double? remainingDistance) {
+    if (initialDistance == null ||
+        remainingDistance == null ||
+        initialDistance <= 0) {
+      return 0;
+    }
+
+    return (1 - (remainingDistance / initialDistance)).clamp(0.0, 1.0);
+  }
 
   String _formatLocation(Map<String, dynamic> location) {
     final lat = _toDouble(location['latitude']);
@@ -1327,11 +1359,13 @@ class _StatusIcon extends StatelessWidget {
 class _TrackingMap extends StatelessWidget {
   final bool hasRoute;
   final String etaLabel;
+  final double progress;
   final double height;
 
   const _TrackingMap({
     required this.hasRoute,
     required this.etaLabel,
+    required this.progress,
     required this.height,
   });
 
@@ -1341,7 +1375,10 @@ class _TrackingMap extends StatelessWidget {
       height: height,
       width: double.infinity,
       child: CustomPaint(
-        painter: _RouteMiniMapPainter(hasRoute: hasRoute),
+        painter: _RouteMiniMapPainter(
+          hasRoute: hasRoute,
+          progress: progress,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Align(
@@ -1511,8 +1548,12 @@ class _LocationChip extends StatelessWidget {
 
 class _RouteMiniMapPainter extends CustomPainter {
   final bool hasRoute;
+  final double progress;
 
-  const _RouteMiniMapPainter({required this.hasRoute});
+  const _RouteMiniMapPainter({
+    required this.hasRoute,
+    required this.progress,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1526,8 +1567,8 @@ class _RouteMiniMapPainter extends CustomPainter {
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    final marker = Paint()..color = const Color(0xFF2563EB);
-    final destination = Paint()..color = const Color(0xFF0F766E);
+    final technicianMarker = Paint()..color = const Color(0xFF2563EB);
+    final clientMarker = Paint()..color = const Color(0xFF0F766E);
 
     final rect = RRect.fromRectAndRadius(
       Offset.zero & size,
@@ -1552,13 +1593,20 @@ class _RouteMiniMapPainter extends CustomPainter {
           size.height * .28, size.width - 26, 24);
     canvas.drawPath(path, route);
 
-    canvas.drawCircle(Offset(24, size.height - 24), 7, marker);
-    canvas.drawCircle(Offset(size.width - 26, 24), 7, destination);
+    final metric = path.computeMetrics().first;
+    final tangent =
+        metric.getTangentForOffset(metric.length * progress.clamp(0.0, 1.0));
+    final technicianPosition =
+        tangent?.position ?? Offset(24, size.height - 24);
+
+    canvas.drawCircle(Offset(size.width - 26, 24), 7, clientMarker);
+    canvas.drawCircle(technicianPosition, 8, technicianMarker);
+    canvas.drawCircle(technicianPosition, 3, Paint()..color = Colors.white);
   }
 
   @override
   bool shouldRepaint(covariant _RouteMiniMapPainter oldDelegate) {
-    return oldDelegate.hasRoute != hasRoute;
+    return oldDelegate.hasRoute != hasRoute || oldDelegate.progress != progress;
   }
 }
 
