@@ -101,6 +101,14 @@ class TechnicianApiController extends Controller
             ], 422);
         }
 
+        $existingUser = User::where('email', $email)->first();
+        if ($existingUser?->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
+
         $user = User::updateOrCreate(
             ['email' => $email],
             [
@@ -200,6 +208,12 @@ class TechnicianApiController extends Controller
                 'code' => 'invalid_credentials',
             ], 401);
         }
+        if ($user->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
 
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
         if ($deviceToken) {
@@ -258,6 +272,10 @@ class TechnicianApiController extends Controller
         ]);
 
         $query = Technician::query();
+        $query->where(function ($query): void {
+            $query->whereDoesntHave('user')
+                ->orWhereHas('user', fn ($userQuery) => $userQuery->where('blocked', false));
+        });
         $skill = strtolower(trim($data['skill'] ?? ''));
 
         if (array_key_exists('available', $data)) {
@@ -294,6 +312,12 @@ class TechnicianApiController extends Controller
                 'code' => 'account_not_found',
             ], 404);
         }
+        if ($user->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
 
         $data = $request->validate([
             'lat' => ['required', 'numeric'],
@@ -329,6 +353,12 @@ class TechnicianApiController extends Controller
                 'code' => 'account_not_found',
             ], 404);
         }
+        if ($user->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
 
         $data = $request->validate([
             'token' => ['nullable', 'string'],
@@ -359,6 +389,12 @@ class TechnicianApiController extends Controller
                 'error' => 'Technician account not found. Please sign in again.',
                 'code' => 'account_not_found',
             ], 404);
+        }
+        if ($technician->user?->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
         }
 
         $data = $request->validate([
@@ -411,6 +447,12 @@ class TechnicianApiController extends Controller
         ]);
 
         $client = User::findOrFail($data['clientId']);
+        if ($client->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
         $clientLat = (float) $data['lat'];
         $clientLon = (float) $data['lon'];
         $technician = isset($data['technicianId'])
@@ -419,6 +461,9 @@ class TechnicianApiController extends Controller
 
         if (!$technician) {
             return response()->json(['error' => 'No matching technician found'], 404);
+        }
+        if ($technician->user?->blocked) {
+            return response()->json(['error' => 'Selected technician is not available.'], 422);
         }
 
         $distance = $this->distanceKm($clientLat, $clientLon, $technician->latitude, $technician->longitude);
@@ -486,6 +531,13 @@ class TechnicianApiController extends Controller
 
         if (isset($data['technicianId']) && (int) $data['technicianId'] !== (int) $serviceRequest->technician_id) {
             return response()->json(['error' => 'Request is assigned to another technician'], 403);
+        }
+        $serviceRequest->loadMissing(['client', 'technician.user']);
+        if ($serviceRequest->client?->blocked || $serviceRequest->technician?->user?->blocked) {
+            return response()->json([
+                'error' => 'This request cannot be updated because one account is blocked.',
+                'code' => 'account_blocked',
+            ], 403);
         }
 
         $status = $data['status'] === 'declined' ? 'rejected' : $data['status'];
@@ -742,6 +794,7 @@ class TechnicianApiController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone ?? '',
+            'blocked' => (bool) $user->blocked,
             'lastLocation' => $user->last_location ?? (object) [],
         ];
     }

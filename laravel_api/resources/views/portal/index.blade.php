@@ -42,7 +42,7 @@
         .button { border: 1px solid var(--line); background: white; color: var(--ink); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
         .button.primary { background: var(--brand); color: white; border-color: var(--brand); }
         .button.muted { color: var(--muted); }
-        select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: white; }
+        select, input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: white; }
         .list { display: grid; gap: 10px; margin-top: 12px; }
         .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
         .item strong { display: block; }
@@ -187,7 +187,7 @@
             </article>
 
             <article class="panel">
-                <h2>Test notifications</h2>
+                <h2>Notifications</h2>
                 <form method="post" action="{{ route('notifications.test') }}" class="list">
                     @csrf
                     <select name="user_id" aria-label="User with device token">
@@ -198,6 +198,30 @@
                         @endforelse
                     </select>
                     <button class="button primary" type="submit" @disabled($notificationUsers->isEmpty())>Send test notification</button>
+                </form>
+                <form method="post" action="{{ route('notifications.warning') }}" class="list">
+                    @csrf
+                    <select name="user_id" aria-label="Warning recipient">
+                        @forelse ($notificationUsers as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }} · {{ $user->role }}</option>
+                        @empty
+                            <option value="">No registered devices</option>
+                        @endforelse
+                    </select>
+                    <input name="title" value="Account warning" aria-label="Warning title">
+                    <textarea name="message" rows="3" required aria-label="Warning message" placeholder="Warning message"></textarea>
+                    <button class="button" type="submit" @disabled($notificationUsers->isEmpty())>Send warning</button>
+                </form>
+                <form method="post" action="{{ route('notifications.news') }}" class="list">
+                    @csrf
+                    <select name="audience" aria-label="News audience">
+                        <option value="all">All users</option>
+                        <option value="clients">Clients only</option>
+                        <option value="technicians">Technicians only</option>
+                    </select>
+                    <input name="title" required aria-label="News title" placeholder="News title">
+                    <textarea name="message" rows="3" required aria-label="News message" placeholder="News message"></textarea>
+                    <button class="button primary" type="submit">Send news</button>
                 </form>
             </article>
 

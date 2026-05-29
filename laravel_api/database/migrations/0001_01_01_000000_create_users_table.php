@@ -21,6 +21,9 @@ return new class extends Migration
             $table->string('password');
             $table->text('device_token')->nullable();
             $table->json('last_location')->nullable();
+            $table->boolean('blocked')->default(false)->index();
+            $table->text('blocked_reason')->nullable();
+            $table->timestamp('blocked_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

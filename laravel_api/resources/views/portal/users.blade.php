@@ -20,7 +20,7 @@
         .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 14px; }
         .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
         label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
-        input, select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: white; }
+        input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: white; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; vertical-align: top; }
         th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
@@ -29,6 +29,7 @@
         .error { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #fdecec; color: var(--danger); }
         .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .danger { color: var(--danger); border-color: #f1c7c7; }
+        .blocked { background: #fdecec; color: var(--danger); }
         .muted { color: var(--muted); font-size: 13px; }
         @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .grid { grid-template-columns: 1fr 1fr; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
         @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
@@ -118,6 +119,10 @@
                         @if ($user->technician)
                             <div class="badge" style="margin-top: 8px;">Technician profile</div>
                         @endif
+                        @if ($user->blocked)
+                            <div class="badge blocked" style="margin-top: 8px;">Blocked</div>
+                            <div class="muted">{{ $user->blocked_reason }}</div>
+                        @endif
                     </td>
                     <td>
                         <input form="update-user-{{ $user->id }}" name="password" type="password" placeholder="Leave unchanged">
@@ -140,7 +145,20 @@
                                     <input type="hidden" name="user_id" value="{{ $user->id }}">
                                     <button class="button" type="submit">Test FCM</button>
                                 </form>
+                                <form class="inline" method="post" action="{{ route('notifications.warning') }}">
+                                    @csrf
+                                    <input type="hidden" name="user_id" value="{{ $user->id }}">
+                                    <input type="hidden" name="message" value="Please review your recent activity. Repeated misuse may lead to account suspension.">
+                                    <button class="button" type="submit">Warn</button>
+                                </form>
                             @endif
+                            <form class="inline" method="post" action="{{ route('users.block', $user) }}" onsubmit="return confirm('{{ $user->blocked ? 'Unblock this user?' : 'Block this user?' }}');">
+                                @csrf
+                                @method('patch')
+                                <input type="hidden" name="blocked" value="{{ $user->blocked ? '0' : '1' }}">
+                                <input type="hidden" name="blocked_reason" value="Blocked by portal administrator.">
+                                <button class="button {{ $user->blocked ? '' : 'danger' }}" type="submit">{{ $user->blocked ? 'Unblock' : 'Block' }}</button>
+                            </form>
                         </div>
                     </td>
                 </tr>

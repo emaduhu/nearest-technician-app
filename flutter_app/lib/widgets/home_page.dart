@@ -82,10 +82,14 @@ class _HomePageState extends State<HomePage> {
           type == 'tech_request' ||
           type == 'service_request' ||
           type == 'technician_response' ||
-          type == 'portal_test') {
+          type == 'portal_test' ||
+          type == 'portal_warning' ||
+          type == 'portal_news') {
         final l10n = AppLocalizations.of(context);
         setState(() {
-          if (type == 'portal_test') {
+          if (type == 'portal_test' ||
+              type == 'portal_warning' ||
+              type == 'portal_news') {
             _status = data['body']?.toString() ?? l10n.newStatus;
           } else if (type == 'request_response' ||
               type == 'technician_response') {

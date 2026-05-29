@@ -55,6 +55,16 @@ class PortalController extends Controller
                 ->onlyInput('email');
         }
 
+        if (Auth::user()?->blocked) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()
+                ->withErrors(['email' => 'This account has been blocked. Contact support for help.'])
+                ->onlyInput('email');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->route($this->landingRouteFor(Auth::user()));
@@ -96,6 +106,7 @@ class PortalController extends Controller
             'notificationUsers' => User::query()
                 ->whereNotNull('device_token')
                 ->where('device_token', '!=', '')
+                ->where('blocked', false)
                 ->orderBy('role')
                 ->orderBy('name')
                 ->limit(50)
@@ -165,6 +176,71 @@ class PortalController extends Controller
         return redirect()->route('dispatch')->with('status', $sent
             ? "Test notification sent to {$user->name}."
             : "Test notification could not be delivered to {$user->name}.");
+    }
+
+    public function sendWarningNotification(Request $request, PushNotificationService $push): RedirectResponse
+    {
+        $this->ensurePortalAccess();
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'title' => ['nullable', 'string', 'max:120'],
+            'message' => ['required', 'string', 'max:500'],
+        ]);
+
+        $user = User::findOrFail($data['user_id']);
+        $sent = $this->sendPortalPush($push, $user, [
+            'title' => $data['title'] ?? 'Account warning',
+            'body' => $data['message'],
+        ], [
+            'type' => 'portal_warning',
+            'userId' => $user->id,
+        ]);
+
+        if (! $sent) {
+            return redirect()->route('dispatch')->withErrors(['notification' => "Warning could not be delivered to {$user->name}."]);
+        }
+
+        return redirect()->route('dispatch')->with('status', "Warning sent to {$user->name}.");
+    }
+
+    public function sendNewsNotification(Request $request, PushNotificationService $push): RedirectResponse
+    {
+        $this->ensurePortalAccess();
+
+        $data = $request->validate([
+            'audience' => ['required', Rule::in(['all', 'clients', 'technicians'])],
+            'title' => ['required', 'string', 'max:120'],
+            'message' => ['required', 'string', 'max:500'],
+        ]);
+
+        $query = User::query()
+            ->whereNotNull('device_token')
+            ->where('device_token', '!=', '')
+            ->where('blocked', false);
+
+        if ($data['audience'] === 'clients') {
+            $query->where('role', 'client');
+        } elseif ($data['audience'] === 'technicians') {
+            $query->where('role', 'technician');
+        }
+
+        $sent = 0;
+        $failed = 0;
+        $query->orderBy('id')->chunkById(100, function ($users) use ($push, $data, &$sent, &$failed): void {
+            foreach ($users as $user) {
+                $ok = $this->sendPortalPush($push, $user, [
+                    'title' => $data['title'],
+                    'body' => $data['message'],
+                ], [
+                    'type' => 'portal_news',
+                    'userId' => $user->id,
+                ]);
+                $ok ? $sent++ : $failed++;
+            }
+        });
+
+        return redirect()->route('dispatch')->with('status', "News sent to {$sent} users. Failed: {$failed}.");
     }
 
     public function technicianDashboard(Request $request): View
@@ -284,6 +360,35 @@ class PortalController extends Controller
         return redirect()->route('users.index')->with('status', 'User deleted.');
     }
 
+    public function toggleUserBlock(Request $request, User $user): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        if ((int) $request->user()->id === (int) $user->id) {
+            return redirect()->route('users.index')->withErrors(['user' => 'You cannot block your own account while signed in.']);
+        }
+
+        $data = $request->validate([
+            'blocked' => ['required', 'boolean'],
+            'blocked_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $blocked = (bool) $data['blocked'];
+        $user->update([
+            'blocked' => $blocked,
+            'blocked_reason' => $blocked ? ($data['blocked_reason'] ?? 'Blocked by portal administrator.') : null,
+            'blocked_at' => $blocked ? now() : null,
+        ]);
+
+        if ($user->role === 'technician') {
+            Technician::where('user_id', $user->id)
+                ->orWhere('email', $user->email)
+                ->update(['available' => ! $blocked]);
+        }
+
+        return redirect()->route('users.index')->with('status', $blocked ? 'User blocked.' : 'User unblocked.');
+    }
+
     public function resetPasswordForm(Request $request): View
     {
         return view('auth.reset-password', [
@@ -321,6 +426,15 @@ class PortalController extends Controller
     private function ensureAdmin(): void
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
+    }
+
+    private function sendPortalPush(PushNotificationService $push, User $user, array $notification, array $data): bool
+    {
+        if (blank($user->device_token)) {
+            return false;
+        }
+
+        return $push->send($user->device_token, $notification, $data);
     }
 
     private function landingRouteFor(?User $user): string
