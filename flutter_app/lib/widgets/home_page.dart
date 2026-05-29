@@ -288,17 +288,43 @@ class _HomePageState extends State<HomePage> {
     final l10n = AppLocalizations.of(context);
     int rating = 5;
     final reportCtrl = TextEditingController();
-    final submitted = await showDialog<bool>(
+    final submitted = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(l10n.endRequest),
-              content: Column(
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.viewInsetsOf(context).bottom + 16,
+              ),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCE4E8),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.endRequest,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 14),
                   Text(l10n.rateTechnician),
                   const SizedBox(height: 8),
                   SegmentedButton<int>(
@@ -322,18 +348,26 @@ class _HomePageState extends State<HomePage> {
                       labelText: l10n.reportTechnician,
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: Text(l10n.back),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: Text(l10n.submit),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(l10n.back),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(l10n.submit),
-                ),
-              ],
             );
           },
         );
@@ -363,28 +397,68 @@ class _HomePageState extends State<HomePage> {
   Future<void> _reportAbuse(Map<String, dynamic> request) async {
     final l10n = AppLocalizations.of(context);
     final detailsCtrl = TextEditingController();
-    final submitted = await showDialog<bool>(
+    final submitted = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
-        return AlertDialog(
-          title: Text(l10n.reportAbuseTitle),
-          content: TextField(
-            controller: detailsCtrl,
-            maxLines: 4,
-            decoration: InputDecoration(
-              labelText: l10n.reportAbuseDetails,
-            ),
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            MediaQuery.viewInsetsOf(context).bottom + 16,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.back),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.submit),
-            ),
-          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCE4E8),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.reportAbuseTitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: detailsCtrl,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: l10n.reportAbuseDetails,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(l10n.back),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text(l10n.submit),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       },
     );
@@ -840,7 +914,7 @@ class _HomePageState extends State<HomePage> {
                   onEnd: () => _endRequest(request),
                   onReport: () => _reportAbuse(request),
                   endLabel: l10n.endRequest,
-                  reportLabel: l10n.reportAbuse,
+                  reportTooltip: l10n.reportAbuse,
                 );
 
                 if (!wide) {
@@ -1304,7 +1378,7 @@ class _TrackingDetails extends StatelessWidget {
   final VoidCallback onEnd;
   final VoidCallback onReport;
   final String endLabel;
-  final String reportLabel;
+  final String reportTooltip;
 
   const _TrackingDetails({
     required this.clientLabel,
@@ -1316,7 +1390,7 @@ class _TrackingDetails extends StatelessWidget {
     required this.onEnd,
     required this.onReport,
     required this.endLabel,
-    required this.reportLabel,
+    required this.reportTooltip,
   });
 
   @override
@@ -1349,10 +1423,13 @@ class _TrackingDetails extends StatelessWidget {
                 icon: const Icon(Icons.task_alt),
                 label: Text(endLabel, overflow: TextOverflow.ellipsis),
               ),
-              OutlinedButton.icon(
+              IconButton.outlined(
                 onPressed: onReport,
-                icon: const Icon(Icons.report_outlined),
-                label: Text(reportLabel, overflow: TextOverflow.ellipsis),
+                tooltip: reportTooltip,
+                icon: const Icon(Icons.report_outlined, size: 18),
+                constraints:
+                    const BoxConstraints.tightFor(width: 42, height: 42),
+                padding: EdgeInsets.zero,
               ),
             ];
 
@@ -1370,10 +1447,11 @@ class _TrackingDetails extends StatelessWidget {
 
             return Row(
               children: [
-                for (final button in buttons) ...[
-                  Expanded(child: button),
-                  if (button != buttons.last) const SizedBox(width: 8),
-                ],
+                Expanded(child: buttons[0]),
+                const SizedBox(width: 8),
+                Expanded(child: buttons[1]),
+                const SizedBox(width: 8),
+                buttons[2],
               ],
             );
           },
