@@ -53,6 +53,27 @@ class ApiService {
     });
   }
 
+  Future<Map<String, dynamic>> sendEmailVerification(String email) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+          Uri.parse('$serverUrl/api/email-verification/send'),
+          headers: _headers,
+          body: jsonEncode({'email': email})));
+    });
+  }
+
+  Future<Map<String, dynamic>> verifyEmail(
+      {required String email, required String code}) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+          Uri.parse('$serverUrl/api/email-verification/verify'),
+          headers: _headers,
+          body: jsonEncode({'email': email, 'code': code})));
+    });
+  }
+
   Future<List<dynamic>> searchTechnicians({
     required String skill,
     required double lat,

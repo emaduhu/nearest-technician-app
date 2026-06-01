@@ -8,6 +8,8 @@ Route::get('/portal/overview', [TechnicianApiController::class, 'portalOverview'
 
 Route::post('/register', [TechnicianApiController::class, 'register']);
 Route::post('/login', [TechnicianApiController::class, 'login']);
+Route::post('/email-verification/send', [TechnicianApiController::class, 'sendEmailVerification']);
+Route::post('/email-verification/verify', [TechnicianApiController::class, 'verifyEmail']);
 Route::post('/forgot-password', [TechnicianApiController::class, 'forgotPassword']);
 Route::post('/reset-password', [TechnicianApiController::class, 'resetPassword']);
 Route::get('/technicians/search', [TechnicianApiController::class, 'searchTechnicians']);

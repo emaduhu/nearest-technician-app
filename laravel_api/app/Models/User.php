@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['role', 'name', 'phone', 'email', 'password', 'device_token', 'last_location', 'blocked', 'blocked_reason', 'blocked_at'])]
+#[Fillable(['role', 'name', 'phone', 'phone_verified_at', 'firebase_phone_uid', 'email', 'email_verified_at', 'password', 'device_token', 'last_location', 'blocked', 'blocked_reason', 'blocked_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -27,6 +27,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'last_location' => 'array',
             'blocked' => 'boolean',

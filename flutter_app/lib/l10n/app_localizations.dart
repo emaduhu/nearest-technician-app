@@ -70,6 +70,47 @@ class AppLocalizations {
       isSwahili ? 'Ongeza angalau ujuzi mmoja' : 'Add at least one skill';
   String get validEmail =>
       isSwahili ? 'Barua pepe sahihi inahitajika' : 'Valid email is required';
+  String get invalidPhone => isSwahili
+      ? 'Weka namba sahihi ya Tanzania'
+      : 'Enter a valid Tanzania mobile number';
+  String get transactionPhoneNotice => isSwahili
+      ? 'Namba utakayothibitisha itatumika kwa miamala. Hutaweza kuibadilisha baada ya kuthibitisha.'
+      : 'The phone number you verify will be used for transactions. You cannot change it after verification.';
+  String get sendPhoneCode =>
+      isSwahili ? 'Tuma msimbo wa simu' : 'Send phone code';
+  String get verifyPhone => isSwahili ? 'Thibitisha simu' : 'Verify phone';
+  String get phoneCode => isSwahili ? 'Msimbo wa simu' : 'Phone code';
+  String get sendingPhoneCode =>
+      isSwahili ? 'Inatuma msimbo wa simu...' : 'Sending phone code...';
+  String get phoneCodeSent => isSwahili
+      ? 'Msimbo umetumwa kwa simu yako'
+      : 'A code has been sent to your phone';
+  String get phoneVerified =>
+      isSwahili ? 'Simu imethibitishwa' : 'Phone verified';
+  String get phoneVerificationRequired => isSwahili
+      ? 'Thibitisha namba ya simu kabla ya kuendelea'
+      : 'Verify your phone number before continuing';
+  String get phoneVerificationFailed => isSwahili
+      ? 'Uthibitishaji wa simu umeshindikana'
+      : 'Phone verification failed';
+  String get sendEmailCode =>
+      isSwahili ? 'Tuma msimbo wa barua pepe' : 'Send email code';
+  String get verifyEmail =>
+      isSwahili ? 'Thibitisha barua pepe' : 'Verify email';
+  String get emailCode => isSwahili ? 'Msimbo wa barua pepe' : 'Email code';
+  String get sendingEmailCode =>
+      isSwahili ? 'Inatuma msimbo wa barua pepe...' : 'Sending email code...';
+  String get emailCodeSent => isSwahili
+      ? 'Msimbo umetumwa kwenye barua pepe'
+      : 'A code has been sent to your email';
+  String get emailVerified =>
+      isSwahili ? 'Barua pepe imethibitishwa' : 'Email verified';
+  String get emailVerificationRequired => isSwahili
+      ? 'Thibitisha barua pepe kabla ya kuendelea'
+      : 'Verify your email before continuing';
+  String get invalidVerificationCode => isSwahili
+      ? 'Weka msimbo wa tarakimu 6'
+      : 'Enter the 6-digit verification code';
   String get minPassword =>
       isSwahili ? 'Angalau herufi 6' : 'Minimum 6 characters';
   String get signingIn => isSwahili ? 'Inaingia...' : 'Signing in...';

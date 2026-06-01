@@ -44,6 +44,10 @@ return [
         'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH'),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID', env('FCM_PROJECT_ID')),
+    ],
+
     'clickpesa' => [
         'base_url' => env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com/third-parties'),
         'client_id' => env('CLICKPESA_CLIENT_ID'),

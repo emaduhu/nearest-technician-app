@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../services/fcm_service.dart';
@@ -35,10 +36,21 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _skillsCtrl = TextEditingController();
+  final _smsCodeCtrl = TextEditingController();
+  final _emailCodeCtrl = TextEditingController();
 
   String _role = 'client';
   String _status = '';
   String? _token;
+  String? _phoneVerificationId;
+  String? _phoneIdToken;
+  String? _verifiedPhone;
+  String? _verifiedEmail;
+  String? _verifiedEmailCode;
+  bool _phoneCodeSent = false;
+  bool _phoneVerified = false;
+  bool _emailCodeSent = false;
+  bool _emailVerified = false;
   bool _loading = false;
   bool _loginMode = false;
 
@@ -48,6 +60,8 @@ class _RegisterPageState extends State<RegisterPage> {
     _loginMode = widget.initialLoginMode;
     _role = widget.initialRole ?? _role;
     _status = widget.initialStatus ?? _status;
+    _phoneCtrl.addListener(_handlePhoneChanged);
+    _emailCtrl.addListener(_handleEmailChanged);
     _initializeFcm();
   }
 
@@ -64,9 +78,57 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  void _handlePhoneChanged() {
+    final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
+    if (!_phoneVerified && !_phoneCodeSent && _phoneIdToken == null) {
+      return;
+    }
+    if (_phoneVerified && phone == _verifiedPhone) {
+      return;
+    }
+    setState(() {
+      _phoneVerified = false;
+      _phoneCodeSent = false;
+      _phoneVerificationId = null;
+      _phoneIdToken = null;
+      _verifiedPhone = null;
+      _smsCodeCtrl.clear();
+    });
+  }
+
+  void _handleEmailChanged() {
+    final email = _emailCtrl.text.trim().toLowerCase();
+    if (!_emailVerified && !_emailCodeSent && _verifiedEmailCode == null) {
+      return;
+    }
+    if (_emailVerified && email == _verifiedEmail) {
+      return;
+    }
+    setState(() {
+      _emailVerified = false;
+      _emailCodeSent = false;
+      _verifiedEmail = null;
+      _verifiedEmailCode = null;
+      _emailCodeCtrl.clear();
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final l10n = AppLocalizations.of(context);
+    if (!_loginMode) {
+      final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
+      final email = _emailCtrl.text.trim().toLowerCase();
+      if (!_phoneVerified || _phoneIdToken == null || _verifiedPhone != phone) {
+        setState(() => _status = l10n.phoneVerificationRequired);
+        return;
+      }
+      if (!_emailVerified || _verifiedEmail != email) {
+        setState(() => _status = l10n.emailVerificationRequired);
+        return;
+      }
+    }
+
     setState(() {
       _loading = true;
       _status = _loginMode ? l10n.signingIn : l10n.gettingLocation;
@@ -90,7 +152,10 @@ class _RegisterPageState extends State<RegisterPage> {
           'name': _nameCtrl.text.trim(),
           'phone': _normalizedTanzaniaPhone(_phoneCtrl.text),
           'email': _emailCtrl.text.trim(),
+          'emailVerificationCode':
+              _verifiedEmailCode ?? _emailCodeCtrl.text.trim(),
           'password': _passwordCtrl.text,
+          'phoneVerificationIdToken': _phoneIdToken,
           'skills': _skillsCtrl.text,
           'token': _token ?? '',
           'lat': pos.latitude,
@@ -116,7 +181,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _forgotPassword() async {
     final l10n = AppLocalizations.of(context);
     final email = _emailCtrl.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
+    if (!_isValidEmail(email)) {
       setState(() => _status = l10n.validEmail);
       return;
     }
@@ -138,6 +203,208 @@ class _RegisterPageState extends State<RegisterPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _sendEmailCode() async {
+    final l10n = AppLocalizations.of(context);
+    final email = _emailCtrl.text.trim().toLowerCase();
+    if (!_isValidEmail(email)) {
+      setState(() => _status = l10n.validEmail);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _status = l10n.sendingEmailCode;
+    });
+
+    try {
+      await _api.sendEmailVerification(email);
+      if (mounted) {
+        setState(() {
+          _emailCodeSent = true;
+          _emailVerified = false;
+          _verifiedEmail = null;
+          _verifiedEmailCode = null;
+          _status = l10n.emailCodeSent;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _confirmEmailCode() async {
+    final l10n = AppLocalizations.of(context);
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final code = _emailCodeCtrl.text.trim();
+    if (!_isValidEmail(email)) {
+      setState(() => _status = l10n.validEmail);
+      return;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _status = l10n.invalidVerificationCode);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _status = l10n.verifyEmail;
+    });
+
+    try {
+      await _api.verifyEmail(email: email, code: code);
+      if (mounted) {
+        setState(() {
+          _emailVerified = true;
+          _verifiedEmail = email;
+          _verifiedEmailCode = code;
+          _status = l10n.emailVerified;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _sendPhoneCode() async {
+    final l10n = AppLocalizations.of(context);
+    final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
+    if (!_isValidTanzaniaPhone(_phoneCtrl.text)) {
+      setState(() => _status = l10n.invalidPhone);
+      return;
+    }
+    if (_role == 'technician' && _looksLikeMpesa(_phoneCtrl.text)) {
+      setState(() => _status = l10n.mpesaNotSupported);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _status = l10n.sendingPhoneCode;
+      _phoneVerified = false;
+      _phoneIdToken = null;
+      _verifiedPhone = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: '+$phone',
+        timeout: const Duration(seconds: 60),
+        verificationCompleted: (credential) async {
+          await _completePhoneVerification(credential, l10n);
+        },
+        verificationFailed: (error) {
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _status = error.message ?? l10n.phoneVerificationFailed;
+            });
+          }
+        },
+        codeSent: (verificationId, resendToken) {
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _phoneVerificationId = verificationId;
+              _phoneCodeSent = true;
+              _status = l10n.phoneCodeSent;
+            });
+          }
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          if (mounted && !_phoneVerified) {
+            setState(() => _phoneVerificationId = verificationId);
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    } finally {
+      if (mounted && !_phoneCodeSent && !_phoneVerified) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _confirmPhoneCode() async {
+    final l10n = AppLocalizations.of(context);
+    final verificationId = _phoneVerificationId;
+    final code = _smsCodeCtrl.text.trim();
+    if (verificationId == null || verificationId.isEmpty) {
+      setState(() => _status = l10n.phoneVerificationRequired);
+      return;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _status = l10n.invalidVerificationCode);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _status = l10n.verifyPhone;
+    });
+
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: code,
+    );
+    await _completePhoneVerification(credential, l10n);
+  }
+
+  Future<void> _completePhoneVerification(
+    PhoneAuthCredential credential,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      final result =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = result.user;
+      final token = await user?.getIdToken(true);
+      final firebasePhone = _normalizedTanzaniaPhone(user?.phoneNumber ?? '');
+      final enteredPhone = _normalizedTanzaniaPhone(_phoneCtrl.text);
+
+      if (token == null || firebasePhone != enteredPhone) {
+        throw FirebaseAuthException(
+          code: 'phone-number-mismatch',
+          message: l10n.phoneVerificationFailed,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _phoneVerified = true;
+          _phoneCodeSent = true;
+          _phoneIdToken = token;
+          _verifiedPhone = enteredPhone;
+          _status = l10n.phoneVerified;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _status = e is FirebaseAuthException
+              ? (e.message ?? l10n.phoneVerificationFailed)
+              : _messageForError(e, l10n);
+        });
       }
     }
   }
@@ -164,6 +431,14 @@ class _RegisterPageState extends State<RegisterPage> {
     return digits;
   }
 
+  bool _isValidTanzaniaPhone(String value) {
+    return RegExp(r'^255[67]\d{8}$').hasMatch(_normalizedTanzaniaPhone(value));
+  }
+
+  bool _isValidEmail(String value) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim());
+  }
+
   bool _looksLikeMpesa(String value) {
     final phone = _normalizedTanzaniaPhone(value);
     if (phone.length < 5 || !phone.startsWith('255')) return false;
@@ -173,11 +448,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _phoneCtrl.removeListener(_handlePhoneChanged);
+    _emailCtrl.removeListener(_handleEmailChanged);
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _skillsCtrl.dispose();
+    _smsCodeCtrl.dispose();
+    _emailCodeCtrl.dispose();
     super.dispose();
   }
 
@@ -298,16 +577,61 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                                 keyboardType: TextInputType.phone,
                                 validator: (v) {
-                                  if (_role != 'technician') return null;
                                   if (v == null || v.trim().isEmpty) {
                                     return l10n.phoneRequired;
                                   }
-                                  if (_looksLikeMpesa(v)) {
+                                  if (!_isValidTanzaniaPhone(v)) {
+                                    return l10n.invalidPhone;
+                                  }
+                                  if (_role == 'technician' &&
+                                      _looksLikeMpesa(v)) {
                                     return l10n.mpesaNotSupported;
                                   }
                                   return null;
                                 },
                               ),
+                              const SizedBox(height: 8),
+                              _VerificationNotice(
+                                  message: l10n.transactionPhoneNotice),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: _loading ? null : _sendPhoneCode,
+                                icon: Icon(_phoneVerified
+                                    ? Icons.verified_outlined
+                                    : Icons.sms_outlined),
+                                label: Text(_phoneVerified
+                                    ? l10n.phoneVerified
+                                    : l10n.sendPhoneCode),
+                              ),
+                              if (_phoneCodeSent && !_phoneVerified) ...[
+                                const SizedBox(height: 10),
+                                TextFormField(
+                                  controller: _smsCodeCtrl,
+                                  decoration: const InputDecoration(
+                                    prefixIcon: Icon(Icons.password_outlined),
+                                  ).copyWith(labelText: l10n.phoneCode),
+                                  keyboardType: TextInputType.number,
+                                  validator: (v) {
+                                    if (_loginMode || _phoneVerified) {
+                                      return null;
+                                    }
+                                    if (v == null ||
+                                        !RegExp(r'^\d{6}$')
+                                            .hasMatch(v.trim())) {
+                                      return l10n.invalidVerificationCode;
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                FilledButton.icon(
+                                  onPressed:
+                                      _loading ? null : _confirmPhoneCode,
+                                  icon:
+                                      const Icon(Icons.verified_user_outlined),
+                                  label: Text(l10n.verifyPhone),
+                                ),
+                              ],
                               if (_role == 'technician') ...[
                                 const SizedBox(height: 12),
                                 _RegistrationFeeNotice(l10n: l10n),
@@ -332,10 +656,50 @@ class _RegisterPageState extends State<RegisterPage> {
                                 prefixIcon: Icon(Icons.email_outlined),
                               ).copyWith(labelText: l10n.email),
                               keyboardType: TextInputType.emailAddress,
-                              validator: (v) => v == null || !v.contains('@')
+                              validator: (v) => v == null || !_isValidEmail(v)
                                   ? l10n.validEmail
                                   : null,
                             ),
+                            if (!_loginMode) ...[
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: _loading ? null : _sendEmailCode,
+                                icon: Icon(_emailVerified
+                                    ? Icons.mark_email_read_outlined
+                                    : Icons.outgoing_mail),
+                                label: Text(_emailVerified
+                                    ? l10n.emailVerified
+                                    : l10n.sendEmailCode),
+                              ),
+                              if (_emailCodeSent && !_emailVerified) ...[
+                                const SizedBox(height: 10),
+                                TextFormField(
+                                  controller: _emailCodeCtrl,
+                                  decoration: const InputDecoration(
+                                    prefixIcon: Icon(Icons.pin_outlined),
+                                  ).copyWith(labelText: l10n.emailCode),
+                                  keyboardType: TextInputType.number,
+                                  validator: (v) {
+                                    if (_loginMode || _emailVerified) {
+                                      return null;
+                                    }
+                                    if (v == null ||
+                                        !RegExp(r'^\d{6}$')
+                                            .hasMatch(v.trim())) {
+                                      return l10n.invalidVerificationCode;
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                FilledButton.icon(
+                                  onPressed:
+                                      _loading ? null : _confirmEmailCode,
+                                  icon: const Icon(Icons.verified_outlined),
+                                  label: Text(l10n.verifyEmail),
+                                ),
+                              ],
+                            ],
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _passwordCtrl,
@@ -393,6 +757,36 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _VerificationNotice extends StatelessWidget {
+  final String message;
+
+  const _VerificationNotice({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.info_outline,
+          size: 18,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: const Color(0xFF51616B)),
+          ),
+        ),
+      ],
     );
   }
 }

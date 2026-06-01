@@ -7,6 +7,8 @@ use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
 use App\Services\ClickPesaPaymentService;
+use App\Services\EmailVerificationService;
+use App\Services\FirebasePhoneAuthService;
 use App\Services\PasswordResetService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +25,8 @@ class TechnicianApiController extends Controller
     public function __construct(
         private readonly PushNotificationService $push,
         private readonly ClickPesaPaymentService $payments,
+        private readonly EmailVerificationService $emailVerification,
+        private readonly FirebasePhoneAuthService $phoneAuth,
     )
     {
     }
@@ -76,8 +80,10 @@ class TechnicianApiController extends Controller
         $data = $request->validate([
             'role' => ['required', Rule::in(['client', 'technician'])],
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required_if:role,technician', 'nullable', 'string', 'max:80'],
+            'phone' => ['required', 'string', 'max:80'],
+            'phoneVerificationIdToken' => ['required', 'string'],
             'email' => ['required', 'email', 'max:255'],
+            'emailVerificationCode' => ['required', 'string', 'size:6'],
             'password' => ['required', 'string', 'min:6'],
             'token' => ['nullable', 'string'],
             'deviceToken' => ['nullable', 'string'],
@@ -91,7 +97,14 @@ class TechnicianApiController extends Controller
         $latitude = (float) $data['lat'];
         $longitude = (float) $data['lon'];
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
-        $phone = filled($data['phone'] ?? null) ? $this->normalizeTanzaniaPhone((string) $data['phone']) : null;
+        $phone = $this->normalizeTanzaniaPhone((string) $data['phone']);
+
+        if (! $this->isValidTanzaniaPhone($phone)) {
+            return response()->json([
+                'error' => 'Enter a valid Tanzania mobile phone number.',
+                'code' => 'invalid_phone',
+            ], 422);
+        }
 
         if ($data['role'] === 'technician' && $phone && $this->isMpesaPhoneNumber($phone)) {
             return response()->json([
@@ -108,6 +121,15 @@ class TechnicianApiController extends Controller
                 'code' => 'account_blocked',
             ], 403);
         }
+        if ($existingUser?->phone_verified_at && $this->normalizeTanzaniaPhone((string) $existingUser->phone) !== $phone) {
+            return response()->json([
+                'error' => 'This account already has a verified transaction phone number. It cannot be changed after verification.',
+                'code' => 'verified_phone_locked',
+            ], 422);
+        }
+
+        $firebasePhone = $this->phoneAuth->verifyIdToken((string) $data['phoneVerificationIdToken'], $phone);
+        $this->emailVerification->assertVerified($email, (string) $data['emailVerificationCode']);
 
         $user = User::updateOrCreate(
             ['email' => $email],
@@ -115,6 +137,9 @@ class TechnicianApiController extends Controller
                 'role' => $data['role'],
                 'name' => $data['name'],
                 'phone' => $phone,
+                'phone_verified_at' => $existingUser?->phone_verified_at ?? now(),
+                'firebase_phone_uid' => $firebasePhone['uid'],
+                'email_verified_at' => $existingUser?->email_verified_at ?? now(),
                 'password' => $data['password'],
                 'device_token' => $deviceToken,
                 'last_location' => [
@@ -149,7 +174,47 @@ class TechnicianApiController extends Controller
             $payload['registrationPayment'] = $this->registrationPaymentDto($technician->fresh());
         }
 
+        $this->emailVerification->forget($email);
+
         return response()->json($payload, 201);
+    }
+
+    public function sendEmailVerification(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        $email = strtolower(trim($data['email']));
+        $user = User::where('email', $email)->first();
+        if ($user?->blocked) {
+            return response()->json([
+                'error' => 'This account has been blocked. Contact support for help.',
+                'code' => 'account_blocked',
+            ], 403);
+        }
+
+        $this->emailVerification->sendCode($email);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'A verification code has been sent to your email.',
+        ]);
+    }
+
+    public function verifyEmail(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'code' => ['required', 'string', 'size:6'],
+        ]);
+
+        $this->emailVerification->verifyCode($data['email'], $data['code']);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Email verified successfully.',
+        ]);
     }
 
     public function registrationPaymentStatus(Technician $technician): JsonResponse
@@ -794,6 +859,8 @@ class TechnicianApiController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone ?? '',
+            'emailVerified' => (bool) $user->email_verified_at,
+            'phoneVerified' => (bool) $user->phone_verified_at,
             'blocked' => (bool) $user->blocked,
             'lastLocation' => $user->last_location ?? (object) [],
         ];
@@ -922,6 +989,11 @@ class TechnicianApiController extends Controller
         $prefix = substr($phone, 3, 2);
 
         return in_array($prefix, ['74', '75', '76'], true);
+    }
+
+    private function isValidTanzaniaPhone(string $phone): bool
+    {
+        return (bool) preg_match('/^255[67][0-9]{8}$/', $this->normalizeTanzaniaPhone($phone));
     }
 
     private function requestDto(ServiceRequest $serviceRequest): array

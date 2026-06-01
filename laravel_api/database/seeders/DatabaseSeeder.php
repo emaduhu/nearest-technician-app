@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
                 'role' => 'admin',
                 'name' => env('PORTAL_ADMIN_NAME', 'Portal Administrator'),
                 'phone' => env('PORTAL_ADMIN_PHONE', '+255700000000'),
+                'phone_verified_at' => now(),
+                'email_verified_at' => now(),
                 'password' => Hash::make((string) env('PORTAL_ADMIN_PASSWORD', 'password')),
             ],
         );
@@ -55,6 +57,8 @@ class DatabaseSeeder extends Seeder
             'role' => 'client',
             'name' => 'Demo Client',
             'phone' => '+255700200001',
+            'phone_verified_at' => now(),
+            'email_verified_at' => now(),
             'password' => Hash::make('password'),
             'last_location' => ['latitude' => -6.8, 'longitude' => 39.25, 'updatedAt' => now()->toISOString()],
         ]);
@@ -64,6 +68,8 @@ class DatabaseSeeder extends Seeder
                 'role' => 'technician',
                 'name' => $row['name'],
                 'phone' => $row['phone'],
+                'phone_verified_at' => now(),
+                'email_verified_at' => now(),
                 'password' => Hash::make('password'),
                 'last_location' => [
                     'latitude' => $row['latitude'],
