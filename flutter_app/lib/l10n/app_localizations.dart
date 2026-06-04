@@ -32,6 +32,12 @@ class AppLocalizations {
       ? 'Pata mafundi waliothibitishwa karibu nawe.'
       : 'Find vetted technicians near your location.';
   String get fullName => isSwahili ? 'Jina kamili' : 'Full name';
+  String get nida => isSwahili ? 'Namba ya NIDA' : 'NIDA number';
+  String get nidaRequired =>
+      isSwahili ? 'Namba ya NIDA inahitajika' : 'NIDA number is required';
+  String get invalidNida => isSwahili
+      ? 'Weka namba sahihi ya NIDA yenye tarakimu 20'
+      : 'Enter a valid 20-digit NIDA number';
   String get phone => isSwahili ? 'Simu' : 'Phone';
   String get phoneRequired =>
       isSwahili ? 'Namba ya simu inahitajika' : 'Phone number is required';
@@ -98,6 +104,8 @@ class AppLocalizations {
       : 'The phone number you verify will be used for transactions. You cannot change it after verification.';
   String get sendPhoneCode =>
       isSwahili ? 'Tuma msimbo wa simu' : 'Send phone code';
+  String get resendPhoneCode =>
+      isSwahili ? 'Tuma tena msimbo' : 'Resend phone code';
   String get verifyPhone => isSwahili ? 'Thibitisha simu' : 'Verify phone';
   String get phoneCode => isSwahili ? 'Msimbo wa simu' : 'Phone code';
   String get sendingPhoneCode =>

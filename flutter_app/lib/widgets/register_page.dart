@@ -32,6 +32,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final ApiService _api = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
+  final _nidaCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -45,6 +46,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _phoneVerificationId;
   String? _phoneIdToken;
   String? _verifiedPhone;
+  int? _phoneResendToken;
   String? _verifiedEmail;
   String? _verifiedEmailCode;
   bool _phoneCodeSent = false;
@@ -92,6 +94,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneVerificationId = null;
       _phoneIdToken = null;
       _verifiedPhone = null;
+      _phoneResendToken = null;
       _smsCodeCtrl.clear();
     });
   }
@@ -150,6 +153,7 @@ class _RegisterPageState extends State<RegisterPage> {
         session = await _api.registerDevice({
           'role': _role,
           'name': _nameCtrl.text.trim(),
+          'nida': _normalizedNida(_nidaCtrl.text),
           'phone': _normalizedTanzaniaPhone(_phoneCtrl.text),
           'email': _emailCtrl.text.trim(),
           'emailVerificationCode':
@@ -288,10 +292,6 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() => _status = l10n.invalidPhone);
       return;
     }
-    if (_role == 'technician' && _looksLikeMpesa(_phoneCtrl.text)) {
-      setState(() => _status = l10n.mpesaNotSupported);
-      return;
-    }
 
     setState(() {
       _loading = true;
@@ -302,9 +302,11 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
+      await FirebaseAuth.instance.setLanguageCode(widget.locale.languageCode);
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: '+$phone',
         timeout: const Duration(seconds: 60),
+        forceResendingToken: _phoneCodeSent ? _phoneResendToken : null,
         verificationCompleted: (credential) async {
           final smsCode = credential.smsCode;
           if (smsCode != null && smsCode.isNotEmpty && mounted) {
@@ -328,6 +330,7 @@ class _RegisterPageState extends State<RegisterPage> {
             setState(() {
               _loading = false;
               _phoneVerificationId = verificationId;
+              _phoneResendToken = resendToken;
               _phoneCodeSent = true;
               _status = l10n.phoneCodeSent;
             });
@@ -446,11 +449,12 @@ class _RegisterPageState extends State<RegisterPage> {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim());
   }
 
-  bool _looksLikeMpesa(String value) {
-    final phone = _normalizedTanzaniaPhone(value);
-    if (phone.length < 5 || !phone.startsWith('255')) return false;
-    final prefix = phone.substring(3, 5);
-    return const {'74', '75', '76'}.contains(prefix);
+  String _normalizedNida(String value) {
+    return value.replaceAll(RegExp(r'\D+'), '');
+  }
+
+  bool _isValidNida(String value) {
+    return RegExp(r'^\d{20}$').hasMatch(_normalizedNida(value));
   }
 
   @override
@@ -458,6 +462,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _phoneCtrl.removeListener(_handlePhoneChanged);
     _emailCtrl.removeListener(_handleEmailChanged);
     _nameCtrl.dispose();
+    _nidaCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -574,6 +579,26 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
+                                controller: _nidaCtrl,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.fingerprint_outlined),
+                                ).copyWith(
+                                  labelText: l10n.nida,
+                                  hintText: '19901234567890123456',
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return l10n.nidaRequired;
+                                  }
+                                  if (!_isValidNida(v)) {
+                                    return l10n.invalidNida;
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
                                 controller: _phoneCtrl,
                                 decoration: const InputDecoration(
                                   prefixIcon: Icon(Icons.call_outlined),
@@ -590,10 +615,6 @@ class _RegisterPageState extends State<RegisterPage> {
                                   if (!_isValidTanzaniaPhone(v)) {
                                     return l10n.invalidPhone;
                                   }
-                                  if (_role == 'technician' &&
-                                      _looksLikeMpesa(v)) {
-                                    return l10n.mpesaNotSupported;
-                                  }
                                   return null;
                                 },
                               ),
@@ -608,7 +629,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                 onPressed: _loading ? null : _sendPhoneCode,
                                 label: Text(_phoneVerified
                                     ? l10n.phoneVerified
-                                    : l10n.sendPhoneCode),
+                                    : _phoneCodeSent
+                                        ? l10n.resendPhoneCode
+                                        : l10n.sendPhoneCode),
                                 icon: _phoneVerified
                                     ? Icons.verified_outlined
                                     : Icons.sms_outlined,

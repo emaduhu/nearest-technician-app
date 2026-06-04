@@ -82,6 +82,7 @@ class TechnicianApiController extends Controller
         $data = $request->validate([
             'role' => ['required', Rule::in(['client', 'technician'])],
             'name' => ['required', 'string', 'max:255'],
+            'nida' => ['required', 'string', 'max:40'],
             'phone' => ['required', 'string', 'max:80'],
             'phoneVerificationIdToken' => ['required', 'string'],
             'email' => ['required', 'email', 'max:255'],
@@ -99,20 +100,20 @@ class TechnicianApiController extends Controller
         $latitude = (float) $data['lat'];
         $longitude = (float) $data['lon'];
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
+        $nida = $this->normalizeNida((string) $data['nida']);
         $phone = $this->normalizeTanzaniaPhone((string) $data['phone']);
+
+        if (! $this->isValidNida($nida)) {
+            return response()->json([
+                'error' => 'Enter a valid 20-digit NIDA number.',
+                'code' => 'invalid_nida',
+            ], 422);
+        }
 
         if (! $this->isValidTanzaniaPhone($phone)) {
             return response()->json([
                 'error' => 'Enter a valid Tanzania mobile phone number.',
                 'code' => 'invalid_phone',
-            ], 422);
-        }
-
-        if ($data['role'] === 'technician' && $phone && $this->isMpesaPhoneNumber($phone)) {
-            return response()->json([
-                'error' => 'Registration fee supports Yas, Airtel, and Halopesa only. M-Pesa is not supported yet, so please register with a Yas, Airtel, or Halopesa number.',
-                'code' => 'unsupported_payment_operator',
-                'supportedOperators' => $this->registrationFeeSupportedOperators(),
             ], 422);
         }
 
@@ -129,6 +130,15 @@ class TechnicianApiController extends Controller
                 'code' => 'verified_phone_locked',
             ], 422);
         }
+        if (
+            User::where('nida', $nida)->when($existingUser, fn ($query) => $query->where('id', '!=', $existingUser->id))->exists()
+            || Technician::where('nida', $nida)->where('email', '!=', $email)->exists()
+        ) {
+            return response()->json([
+                'error' => 'This NIDA number is already registered.',
+                'code' => 'nida_already_registered',
+            ], 422);
+        }
 
         $firebasePhone = $this->phoneAuth->verifyIdToken((string) $data['phoneVerificationIdToken'], $phone);
         $this->emailVerification->assertVerified($email, (string) $data['emailVerificationCode']);
@@ -138,6 +148,7 @@ class TechnicianApiController extends Controller
             [
                 'role' => $data['role'],
                 'name' => $data['name'],
+                'nida' => $nida,
                 'phone' => $phone,
                 'phone_verified_at' => $existingUser?->phone_verified_at ?? now(),
                 'firebase_phone_uid' => $firebasePhone['uid'],
@@ -160,6 +171,7 @@ class TechnicianApiController extends Controller
                 [
                     'user_id' => $user->id,
                     'name' => $data['name'],
+                    'nida' => $nida,
                     'phone' => $phone,
                     'password' => $data['password'],
                     'device_token' => $deviceToken,
@@ -187,6 +199,7 @@ class TechnicianApiController extends Controller
             'metadata' => [
                 'role' => $data['role'],
                 'email' => $email,
+                'nida' => $this->nidaHint($nida),
                 'phone' => $this->phoneHint($phone),
                 'hasDeviceToken' => filled($deviceToken),
             ],
@@ -1204,6 +1217,7 @@ class TechnicianApiController extends Controller
             'id' => (string) $user->id,
             'role' => $user->role,
             'name' => $user->name,
+            'nida' => $user->nida ?? '',
             'email' => $user->email,
             'phone' => $user->phone ?? '',
             'emailVerified' => (bool) $user->email_verified_at,
@@ -1219,6 +1233,7 @@ class TechnicianApiController extends Controller
             'id' => (string) $technician->id,
             'userId' => $technician->user_id ? (string) $technician->user_id : '',
             'name' => $technician->name,
+            'nida' => $technician->nida ?? '',
             'phone' => $technician->phone ?? '',
             'email' => $technician->email,
             'image' => $technician->image ?? '',
@@ -1238,6 +1253,33 @@ class TechnicianApiController extends Controller
             return;
         }
 
+        $payerPhone = $this->normalizeTanzaniaPhone((string) $technician->phone);
+        if ($this->isMpesaPhoneNumber($payerPhone)) {
+            $amount = $this->payments->technicianRegistrationFee();
+            $currency = config('services.clickpesa.currency', 'TZS');
+            $this->createPaymentAction($technician, [
+                'operator' => 'Auto',
+                'payer_phone' => $payerPhone,
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => 'unsupported_payment_operator',
+                'error' => 'M-Pesa is not supported for automatic registration fee payment.',
+                'requested_at' => now(),
+            ]);
+            $technician->update([
+                'registration_fee_amount' => $amount,
+                'registration_fee_currency' => $currency,
+                'registration_payment_status' => 'unsupported_payment_operator',
+                'registration_payment_response' => [
+                    'message' => 'Use Yas, Airtel, or Halopesa for the registration fee payment.',
+                    'payerPhone' => $payerPhone,
+                ],
+                'registration_payment_requested_at' => now(),
+            ]);
+
+            return;
+        }
+
         if (! $this->payments->configured()) {
             $technician->update([
                 'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
@@ -1251,7 +1293,7 @@ class TechnicianApiController extends Controller
         $orderReference = $this->payments->newOrderReference($technician->id);
         $actionId = $this->createPaymentAction($technician, [
             'operator' => 'Auto',
-            'payer_phone' => $this->normalizeTanzaniaPhone((string) $technician->phone),
+            'payer_phone' => $payerPhone,
             'amount' => $this->payments->technicianRegistrationFee(),
             'currency' => config('services.clickpesa.currency', 'TZS'),
             'status' => 'initiated',
@@ -1261,7 +1303,7 @@ class TechnicianApiController extends Controller
 
         try {
             $response = $this->payments->initiateTechnicianRegistrationPayment(
-                (string) $technician->phone,
+                $payerPhone,
                 $orderReference,
             );
             $status = strtolower((string) ($response['status'] ?? 'processing'));
@@ -1461,9 +1503,29 @@ class TechnicianApiController extends Controller
         return str_repeat('*', max(strlen($digits) - 4, 0)).substr($digits, -4);
     }
 
+    private function nidaHint(?string $nida): string
+    {
+        $digits = $this->normalizeNida((string) $nida);
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', max(strlen($digits) - 4, 0)).substr($digits, -4);
+    }
+
     private function registrationFeeSupportedOperators(): array
     {
         return ['Yas', 'Airtel', 'Halopesa'];
+    }
+
+    private function normalizeNida(string $nida): string
+    {
+        return preg_replace('/\D+/', '', $nida) ?? '';
+    }
+
+    private function isValidNida(string $nida): bool
+    {
+        return (bool) preg_match('/^[0-9]{20}$/', $this->normalizeNida($nida));
     }
 
     private function normalizeTanzaniaPhone(string $phone): string

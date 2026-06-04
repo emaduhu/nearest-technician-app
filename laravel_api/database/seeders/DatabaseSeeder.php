@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             [
                 'role' => 'admin',
                 'name' => env('PORTAL_ADMIN_NAME', 'Portal Administrator'),
+                'nida' => env('PORTAL_ADMIN_NIDA', '19000101000000000001'),
                 'phone' => env('PORTAL_ADMIN_PHONE', '+255700000000'),
                 'phone_verified_at' => now(),
                 'email_verified_at' => now(),
@@ -26,6 +27,7 @@ class DatabaseSeeder extends Seeder
         $technicians = [
             [
                 'name' => 'Asha Msuya',
+                'nida' => '19000101000000000003',
                 'email' => 'asha.tech@example.com',
                 'phone' => '+255700100001',
                 'skills' => ['Plumbing', 'Water pumps', 'Leak repair'],
@@ -35,6 +37,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Baraka Mwita',
+                'nida' => '19000101000000000004',
                 'email' => 'baraka.tech@example.com',
                 'phone' => '+255700100002',
                 'skills' => ['Electrical', 'Solar', 'Wiring'],
@@ -44,6 +47,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Neema John',
+                'nida' => '19000101000000000005',
                 'email' => 'neema.tech@example.com',
                 'phone' => '+255700100003',
                 'skills' => ['Appliance repair', 'Refrigeration', 'AC'],
@@ -56,6 +60,7 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(['email' => 'client@example.com'], [
             'role' => 'client',
             'name' => 'Demo Client',
+            'nida' => '19000101000000000002',
             'phone' => '+255700200001',
             'phone_verified_at' => now(),
             'email_verified_at' => now(),
@@ -67,6 +72,7 @@ class DatabaseSeeder extends Seeder
             $user = User::updateOrCreate(['email' => $row['email']], [
                 'role' => 'technician',
                 'name' => $row['name'],
+                'nida' => $row['nida'],
                 'phone' => $row['phone'],
                 'phone_verified_at' => now(),
                 'email_verified_at' => now(),
@@ -81,6 +87,7 @@ class DatabaseSeeder extends Seeder
             Technician::updateOrCreate(['email' => $row['email']], [
                 'user_id' => $user->id,
                 'name' => $row['name'],
+                'nida' => $row['nida'],
                 'phone' => $row['phone'],
                 'password' => Hash::make('password'),
                 'skills' => $row['skills'],
