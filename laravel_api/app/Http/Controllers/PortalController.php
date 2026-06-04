@@ -92,6 +92,7 @@ class PortalController extends Controller
                 'technicians' => $totalTechnicians,
                 'available' => $availableTechnicians,
                 'unavailable' => max($totalTechnicians - $availableTechnicians, 0),
+                'pendingReviews' => Technician::where('registration_review_status', 'pending')->count(),
                 'pending' => ServiceRequest::where('status', 'pending')->count(),
                 'completed' => ServiceRequest::where('status', 'completed')->count(),
             ],
@@ -100,8 +101,14 @@ class PortalController extends Controller
                 ->limit(12)
                 ->get(),
             'technicians' => Technician::query()
+                ->where('registration_review_status', 'approved')
                 ->orderByDesc('last_seen_at')
                 ->limit(12)
+                ->get(),
+            'pendingTechnicianReviews' => Technician::with('user')
+                ->whereIn('registration_review_status', ['pending', 'rejected'])
+                ->latest()
+                ->limit(20)
                 ->get(),
             'notificationUsers' => User::query()
                 ->whereNotNull('device_token')
@@ -150,6 +157,31 @@ class PortalController extends Controller
         ]);
 
         return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
+    }
+
+    public function reviewTechnicianRegistration(Request $request, Technician $technician): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['approved', 'rejected'])],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $approved = $data['decision'] === 'approved';
+        $technician->update([
+            'registration_review_status' => $data['decision'],
+            'registration_review_note' => $data['note'] ?? null,
+            'registration_reviewed_at' => now(),
+            'registration_reviewed_by' => $request->user()->id,
+            'available' => $approved,
+            'last_seen_at' => $approved ? now() : $technician->last_seen_at,
+        ]);
+
+        return redirect()->route('dispatch')->with(
+            'status',
+            $approved ? 'Technician registration approved.' : 'Technician registration rejected.'
+        );
     }
 
     public function sendTestNotification(Request $request, PushNotificationService $push): RedirectResponse
@@ -465,9 +497,13 @@ class PortalController extends Controller
         $attributes = [
             'user_id' => $user->id,
             'name' => $user->name,
+            'nida' => $user->nida,
             'phone' => $user->phone,
             'email' => $user->email,
             'available' => true,
+            'registration_review_status' => 'approved',
+            'registration_reviewed_at' => now(),
+            'registration_reviewed_by' => Auth::id(),
             'last_seen_at' => now(),
         ];
 

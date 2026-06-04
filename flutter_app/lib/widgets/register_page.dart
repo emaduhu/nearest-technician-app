@@ -1,9 +1,15 @@
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../l10n/app_localizations.dart';
 import '../services/fcm_service.dart';
 import '../services/location_service.dart';
 import '../services/api_service.dart';
+
+enum _RegistrationPhotoType { nidaCard, face }
 
 class RegisterPage extends StatefulWidget {
   final Function(Map<String, dynamic> session) onRegistered;
@@ -30,6 +36,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final FcmService _fcm = FcmService();
   final ApiService _api = ApiService();
+  final ImagePicker _imagePicker = ImagePicker();
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _nidaCtrl = TextEditingController();
@@ -49,6 +56,10 @@ class _RegisterPageState extends State<RegisterPage> {
   int? _phoneResendToken;
   String? _verifiedEmail;
   String? _verifiedEmailCode;
+  String? _nidaCardImageData;
+  String? _faceImageData;
+  Uint8List? _nidaCardPreview;
+  Uint8List? _facePreview;
   bool _phoneCodeSent = false;
   bool _phoneVerified = false;
   bool _emailCodeSent = false;
@@ -62,9 +73,22 @@ class _RegisterPageState extends State<RegisterPage> {
     _loginMode = widget.initialLoginMode;
     _role = widget.initialRole ?? _role;
     _status = widget.initialStatus ?? _status;
+    _nidaCtrl.addListener(_handleNidaChanged);
     _phoneCtrl.addListener(_handlePhoneChanged);
     _emailCtrl.addListener(_handleEmailChanged);
     _initializeFcm();
+  }
+
+  void _handleNidaChanged() {
+    final formatted = _formattedNida(_nidaCtrl.text);
+    if (formatted == _nidaCtrl.text) {
+      return;
+    }
+
+    _nidaCtrl.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
   }
 
   Future<void> _initializeFcm() async {
@@ -116,12 +140,36 @@ class _RegisterPageState extends State<RegisterPage> {
     });
   }
 
+  void _setRole(String role) {
+    setState(() {
+      _role = role;
+      if (role != 'technician') {
+        _nidaCtrl.clear();
+        _skillsCtrl.clear();
+        _nidaCardImageData = null;
+        _faceImageData = null;
+        _nidaCardPreview = null;
+        _facePreview = null;
+      }
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final l10n = AppLocalizations.of(context);
     if (!_loginMode) {
       final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
       final email = _emailCtrl.text.trim().toLowerCase();
+      if (_role == 'technician') {
+        if (!_isValidNida(_nidaCtrl.text)) {
+          setState(() => _status = l10n.invalidNida);
+          return;
+        }
+        if (_nidaCardImageData == null || _faceImageData == null) {
+          setState(() => _status = l10n.registrationImagesRequired);
+          return;
+        }
+      }
       if (!_phoneVerified || _phoneIdToken == null || _verifiedPhone != phone) {
         setState(() => _status = l10n.phoneVerificationRequired);
         return;
@@ -153,7 +201,9 @@ class _RegisterPageState extends State<RegisterPage> {
         session = await _api.registerDevice({
           'role': _role,
           'name': _nameCtrl.text.trim(),
-          'nida': _normalizedNida(_nidaCtrl.text),
+          if (_role == 'technician') 'nida': _normalizedNida(_nidaCtrl.text),
+          if (_role == 'technician') 'nidaIdImage': _nidaCardImageData,
+          if (_role == 'technician') 'faceImage': _faceImageData,
           'phone': _normalizedTanzaniaPhone(_phoneCtrl.text),
           'email': _emailCtrl.text.trim(),
           'emailVerificationCode':
@@ -419,6 +469,47 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  Future<void> _captureRegistrationPhoto(_RegistrationPhotoType type) async {
+    final l10n = AppLocalizations.of(context);
+    setState(() => _status = l10n.capturingImage);
+
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: type == _RegistrationPhotoType.face
+            ? CameraDevice.front
+            : CameraDevice.rear,
+        imageQuality: 72,
+        maxWidth: 1280,
+        maxHeight: 1280,
+      );
+      if (file == null) {
+        setState(() => _status = '');
+        return;
+      }
+
+      final bytes = await file.readAsBytes();
+      final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      if (mounted) {
+        setState(() {
+          if (type == _RegistrationPhotoType.nidaCard) {
+            _nidaCardImageData = dataUri;
+            _nidaCardPreview = bytes;
+            _status = l10n.nidaImageCaptured;
+          } else {
+            _faceImageData = dataUri;
+            _facePreview = bytes;
+            _status = l10n.faceImageCaptured;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    }
+  }
+
   String _messageForError(Object error, AppLocalizations l10n) {
     if (_loginMode &&
         error is ApiException &&
@@ -453,12 +544,37 @@ class _RegisterPageState extends State<RegisterPage> {
     return value.replaceAll(RegExp(r'\D+'), '');
   }
 
+  String _formattedNida(String value) {
+    final digits = _normalizedNida(value);
+    final limited = digits.length > 20 ? digits.substring(0, 20) : digits;
+    final parts = <String>[];
+
+    if (limited.isNotEmpty) {
+      parts.add(limited.substring(0, limited.length < 8 ? limited.length : 8));
+    }
+    if (limited.length > 8) {
+      parts
+          .add(limited.substring(8, limited.length < 13 ? limited.length : 13));
+    }
+    if (limited.length > 13) {
+      parts.add(
+          limited.substring(13, limited.length < 18 ? limited.length : 18));
+    }
+    if (limited.length > 18) {
+      parts.add(
+          limited.substring(18, limited.length < 20 ? limited.length : 20));
+    }
+
+    return parts.join('-');
+  }
+
   bool _isValidNida(String value) {
     return RegExp(r'^\d{20}$').hasMatch(_normalizedNida(value));
   }
 
   @override
   void dispose() {
+    _nidaCtrl.removeListener(_handleNidaChanged);
     _phoneCtrl.removeListener(_handlePhoneChanged);
     _emailCtrl.removeListener(_handleEmailChanged);
     _nameCtrl.dispose();
@@ -563,8 +679,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               selected: {_role},
                               onSelectionChanged: _loginMode
                                   ? null
-                                  : (value) =>
-                                      setState(() => _role = value.first),
+                                  : (value) => _setRole(value.first),
                             ),
                             const SizedBox(height: 16),
                             if (!_loginMode) ...[
@@ -576,26 +691,6 @@ class _RegisterPageState extends State<RegisterPage> {
                                 validator: (v) => v == null || v.trim().isEmpty
                                     ? l10n.nameRequired
                                     : null,
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _nidaCtrl,
-                                decoration: const InputDecoration(
-                                  prefixIcon: Icon(Icons.fingerprint_outlined),
-                                ).copyWith(
-                                  labelText: l10n.nida,
-                                  hintText: '19901234567890123456',
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return l10n.nidaRequired;
-                                  }
-                                  if (!_isValidNida(v)) {
-                                    return l10n.invalidNida;
-                                  }
-                                  return null;
-                                },
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
@@ -665,6 +760,66 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                               ],
                               if (_role == 'technician') ...[
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _nidaCtrl,
+                                  decoration: const InputDecoration(
+                                    prefixIcon:
+                                        Icon(Icons.fingerprint_outlined),
+                                    counterText: '',
+                                  ).copyWith(
+                                    labelText: l10n.nida,
+                                    hintText: 'XXXXXXXX-XXXXX-XXXXX-XX',
+                                    helperText: l10n.nidaFormatHint,
+                                  ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'[0-9-]')),
+                                    LengthLimitingTextInputFormatter(23),
+                                  ],
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 23,
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return l10n.nidaRequired;
+                                    }
+                                    if (!_isValidNida(v)) {
+                                      return l10n.invalidNida;
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                _CaptureCard(
+                                  title: l10n.nidaCardPhoto,
+                                  helper: l10n.nidaCardPhotoHint,
+                                  icon: Icons.credit_card_outlined,
+                                  imageBytes: _nidaCardPreview,
+                                  onPressed: _loading
+                                      ? null
+                                      : () => _captureRegistrationPhoto(
+                                          _RegistrationPhotoType.nidaCard),
+                                  buttonLabel: _nidaCardPreview == null
+                                      ? l10n.captureNidaCard
+                                      : l10n.retakeNidaCard,
+                                ),
+                                const SizedBox(height: 12),
+                                _CaptureCard(
+                                  title: l10n.facePhoto,
+                                  helper: l10n.facePhotoHint,
+                                  icon: Icons.face_outlined,
+                                  imageBytes: _facePreview,
+                                  onPressed: _loading
+                                      ? null
+                                      : () => _captureRegistrationPhoto(
+                                          _RegistrationPhotoType.face),
+                                  buttonLabel: _facePreview == null
+                                      ? l10n.captureFace
+                                      : l10n.retakeFace,
+                                ),
+                                const SizedBox(height: 12),
+                                _VerificationNotice(
+                                    message: l10n.adminReviewNotice),
                                 const SizedBox(height: 12),
                                 _RegistrationFeeNotice(l10n: l10n),
                                 const SizedBox(height: 12),
@@ -914,6 +1069,115 @@ class _VerificationActionRow extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _CaptureCard extends StatelessWidget {
+  final String title;
+  final String helper;
+  final String buttonLabel;
+  final IconData icon;
+  final Uint8List? imageBytes;
+  final VoidCallback? onPressed;
+
+  const _CaptureCard({
+    required this.title,
+    required this.helper,
+    required this.buttonLabel,
+    required this.icon,
+    required this.imageBytes,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDCE4E8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF5F3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color.primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      helper,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: const Color(0xFF51616B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: imageBytes == null
+                      ? const Color(0xFFDCE4E8)
+                      : const Color(0xFF99F6E4),
+                ),
+              ),
+              child: imageBytes == null
+                  ? Center(
+                      child: Icon(
+                        Icons.add_a_photo_outlined,
+                        color: color.primary,
+                        size: 34,
+                      ),
+                    )
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Image.memory(imageBytes!, fit: BoxFit.cover),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _TinyActionButton(
+              onPressed: onPressed,
+              icon: Icons.photo_camera_outlined,
+              label: buttonLabel,
+            ),
+          ),
+        ],
       ),
     );
   }

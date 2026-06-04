@@ -36,8 +36,48 @@ class AppLocalizations {
   String get nidaRequired =>
       isSwahili ? 'Namba ya NIDA inahitajika' : 'NIDA number is required';
   String get invalidNida => isSwahili
-      ? 'Weka namba sahihi ya NIDA yenye tarakimu 20'
-      : 'Enter a valid 20-digit NIDA number';
+      ? 'Weka NIDA sahihi kwa muundo XXXXXXXX-XXXXX-XXXXX-XX'
+      : 'Enter NIDA in the format XXXXXXXX-XXXXX-XXXXX-XX';
+  String get nidaFormatHint => isSwahili
+      ? 'Tarakimu 20; mistari itawekwa kiotomatiki.'
+      : '20 digits; hyphens are added automatically.';
+  String get nidaCardPhoto =>
+      isSwahili ? 'Picha ya kitambulisho cha NIDA' : 'NIDA ID photo';
+  String get nidaCardPhotoHint => isSwahili
+      ? 'Piga picha ya kitambulisho chote kama kilivyo. Kona zote nne zionekane.'
+      : 'Capture the full ID exactly as it is. All four corners must be visible.';
+  String get facePhoto => isSwahili ? 'Picha ya uso' : 'Face photo';
+  String get facePhotoHint => isSwahili
+      ? 'Piga picha ya uso wako wazi kwa uhakiki wa msimamizi.'
+      : 'Capture a clear face photo for admin review.';
+  String get captureNidaCard =>
+      isSwahili ? 'Piga picha ya NIDA' : 'Capture NIDA ID';
+  String get retakeNidaCard =>
+      isSwahili ? 'Rudia picha ya NIDA' : 'Retake NIDA ID';
+  String get captureFace => isSwahili ? 'Piga picha ya uso' : 'Capture face';
+  String get retakeFace => isSwahili ? 'Rudia picha ya uso' : 'Retake face';
+  String get capturingImage =>
+      isSwahili ? 'Inafungua kamera...' : 'Opening camera...';
+  String get nidaImageCaptured =>
+      isSwahili ? 'Picha ya NIDA imechukuliwa' : 'NIDA photo captured';
+  String get faceImageCaptured =>
+      isSwahili ? 'Picha ya uso imechukuliwa' : 'Face photo captured';
+  String get registrationImagesRequired => isSwahili
+      ? 'Picha ya NIDA na picha ya uso zinahitajika'
+      : 'NIDA ID photo and face photo are required';
+  String get adminReviewNotice => isSwahili
+      ? 'Baada ya usajili, msimamizi atahakiki taarifa zako kabla ya kuendelea.'
+      : 'After registration, an admin will review your details before you proceed.';
+  String get registrationReviewTitle =>
+      isSwahili ? 'Usajili unasubiri uhakiki' : 'Registration under review';
+  String get registrationReviewPending => isSwahili
+      ? 'Msimamizi anakagua NIDA na picha yako. Utaendelea baada ya kuidhinishwa.'
+      : 'An admin is reviewing your NIDA ID and face photo. You can proceed after approval.';
+  String get registrationReviewRejected => isSwahili
+      ? 'Usajili wako umekataliwa. Wasiliana na msaada au sajili tena kwa taarifa sahihi.'
+      : 'Your registration was rejected. Contact support or register again with correct details.';
+  String get registrationReviewApproved =>
+      isSwahili ? 'Usajili umeidhinishwa' : 'Registration approved';
   String get phone => isSwahili ? 'Simu' : 'Phone';
   String get phoneRequired =>
       isSwahili ? 'Namba ya simu inahitajika' : 'Phone number is required';

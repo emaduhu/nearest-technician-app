@@ -17,7 +17,7 @@
         nav a.active { background: var(--brand); color: white; border-color: var(--brand); }
         nav form { margin: 0; }
         .eyebrow { margin: 0 0 4px; color: var(--brand); font-weight: 800; text-transform: uppercase; font-size: 12px; letter-spacing: .08em; }
-        .metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .metrics { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         .metric, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
         .metric { padding: 18px; }
         .metric span { display: block; color: var(--muted); font-size: 13px; }
@@ -47,8 +47,14 @@
         .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
         .item strong { display: block; }
         .item span { display: block; color: var(--muted); margin-top: 4px; font-size: 13px; }
-        @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: 1fr; } }
-        @media (max-width: 620px) { .metrics, .split { grid-template-columns: 1fr; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
+        .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+        .review-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; }
+        .review-images { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin: 10px 0; }
+        .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 4 / 3; display: grid; place-items: center; }
+        .review-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .review-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+        @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid, .review-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images { grid-template-columns: 1fr; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
     </style>
 </head>
 <body>
@@ -83,9 +89,64 @@
         <article class="metric"><span>Technicians</span><strong>{{ $stats['technicians'] }}</strong></article>
         <article class="metric"><span>Available</span><strong>{{ $stats['available'] }}</strong></article>
         <article class="metric"><span>Unavailable</span><strong>{{ $stats['unavailable'] }}</strong></article>
+        <article class="metric"><span>Reviews</span><strong>{{ $stats['pendingReviews'] }}</strong></article>
         <article class="metric"><span>Pending</span><strong>{{ $stats['pending'] }}</strong></article>
         <article class="metric"><span>Completed</span><strong>{{ $stats['completed'] }}</strong></article>
     </section>
+
+    @if (auth()->user()?->role === 'admin')
+        <section class="panel">
+            <div class="toolbar">
+                <h2>Technician registration review</h2>
+                <span class="badge pending">{{ $pendingTechnicianReviews->where('registration_review_status', 'pending')->count() }} pending</span>
+            </div>
+            <div class="review-grid">
+                @forelse ($pendingTechnicianReviews as $technician)
+                    <article class="review-card">
+                        <strong>{{ $technician->name }}</strong>
+                        <span class="badge {{ $technician->registration_review_status === 'rejected' ? 'rejected' : 'pending' }}" style="margin-top:8px;">{{ $technician->registration_review_status }}</span>
+                        <div class="item" style="margin-top:10px;">
+                            <span>Email: {{ $technician->email }}</span>
+                            <span>Phone: {{ $technician->phone ?: '-' }}</span>
+                            <span>NIDA: {{ $technician->nida ?: '-' }}</span>
+                            <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
+                        </div>
+                        <div class="review-images">
+                            <div>
+                                <label>NIDA ID</label>
+                                <div class="review-image">
+                                    @if ($technician->nida_id_image)
+                                        <img src="{{ $technician->nida_id_image }}" alt="NIDA ID for {{ $technician->name }}">
+                                    @else
+                                        <span>No NIDA image</span>
+                                    @endif
+                                </div>
+                            </div>
+                            <div>
+                                <label>Face</label>
+                                <div class="review-image">
+                                    @if ($technician->face_image)
+                                        <img src="{{ $technician->face_image }}" alt="Face photo for {{ $technician->name }}">
+                                    @else
+                                        <span>No face image</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <form class="review-actions" method="post" action="{{ route('technicians.registration-review', $technician) }}">
+                            @csrf
+                            @method('patch')
+                            <input name="note" placeholder="Review note">
+                            <button class="button primary" name="decision" value="approved" type="submit">Approve</button>
+                            <button class="button" name="decision" value="rejected" type="submit">Reject</button>
+                        </form>
+                    </article>
+                @empty
+                    <p>No technician registrations need review.</p>
+                @endforelse
+            </div>
+        </section>
+    @endif
 
     <section class="grid">
         <div>

@@ -60,6 +60,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool get _isTechnician => _user['role'] == 'technician';
+  Map<String, dynamic> get _registrationReview {
+    final review = _technician?['registrationReview'];
+    return review is Map ? Map<String, dynamic>.from(review) : {};
+  }
+
+  String get _registrationReviewStatus =>
+      _registrationReview['status']?.toString() ?? 'approved';
+  bool get _technicianApproved =>
+      !_isTechnician || _registrationReviewStatus == 'approved';
   bool get _hasAcceptedRequest =>
       _history.any((item) => item is Map && item['status'] == 'accepted');
 
@@ -75,6 +84,7 @@ class _HomePageState extends State<HomePage> {
             : null;
     _paymentPhoneCtrl.text =
         _localTanzaniaPhone(_technician?['phone'] ?? _user['phone'] ?? '');
+    _available = _technician?['available'] == true;
     _initializeForegroundUpdates();
     _loadHistory();
     _startLiveLocation();
@@ -134,6 +144,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _startLiveLocation() async {
+    if (_isTechnician && !_technicianApproved) {
+      setState(() =>
+          _status = AppLocalizations.of(context).registrationReviewPending);
+      return;
+    }
+
     final stream = await LocationService.getPositionStream();
     if (stream == null) {
       setState(() =>
@@ -737,6 +753,26 @@ class _HomePageState extends State<HomePage> {
   Widget _technicianDashboard() {
     final l10n = AppLocalizations.of(context);
     final pending = _history.where((r) => r['status'] == 'pending').toList();
+    if (!_technicianApproved) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          _DashboardHeader(
+            title: l10n.technicianDashboard,
+            subtitle: l10n.technicianDashboardSubtitle,
+            icon: Icons.engineering,
+            trailing: _MetricPill(
+              icon: Icons.fact_check_outlined,
+              label: l10n.registrationReviewTitle,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _registrationReviewCard(),
+          if (_status.isNotEmpty) _InlineStatus(message: _status),
+        ],
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
@@ -793,6 +829,67 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 12),
         _historySection(),
       ],
+    );
+  }
+
+  Widget _registrationReviewCard() {
+    final l10n = AppLocalizations.of(context);
+    final status = _registrationReviewStatus;
+    final rejected = status == 'rejected';
+    final title = rejected
+        ? l10n.registrationReviewRejected
+        : l10n.registrationReviewPending;
+    final note = _registrationReview['note']?.toString() ?? '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: rejected
+                    ? const Color(0xFFFDECEC)
+                    : const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                rejected
+                    ? Icons.report_gmailerrorred_outlined
+                    : Icons.pending_actions_outlined,
+                color: rejected
+                    ? const Color(0xFFA62626)
+                    : const Color(0xFFB45309),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.registrationReviewTitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(title, style: const TextStyle(color: Color(0xFF51616B))),
+                  if (note.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(note,
+                        style: const TextStyle(color: Color(0xFF697781))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -82,7 +82,9 @@ class TechnicianApiController extends Controller
         $data = $request->validate([
             'role' => ['required', Rule::in(['client', 'technician'])],
             'name' => ['required', 'string', 'max:255'],
-            'nida' => ['required', 'string', 'max:40'],
+            'nida' => ['required_if:role,technician', 'nullable', 'string', 'max:40'],
+            'nidaIdImage' => ['required_if:role,technician', 'nullable', 'string'],
+            'faceImage' => ['required_if:role,technician', 'nullable', 'string'],
             'phone' => ['required', 'string', 'max:80'],
             'phoneVerificationIdToken' => ['required', 'string'],
             'email' => ['required', 'email', 'max:255'],
@@ -100,12 +102,12 @@ class TechnicianApiController extends Controller
         $latitude = (float) $data['lat'];
         $longitude = (float) $data['lon'];
         $deviceToken = $data['token'] ?? $data['deviceToken'] ?? null;
-        $nida = $this->normalizeNida((string) $data['nida']);
+        $nida = $this->normalizeNida((string) ($data['nida'] ?? ''));
         $phone = $this->normalizeTanzaniaPhone((string) $data['phone']);
 
-        if (! $this->isValidNida($nida)) {
+        if ($data['role'] === 'technician' && ! $this->isValidNida($nida)) {
             return response()->json([
-                'error' => 'Enter a valid 20-digit NIDA number.',
+                'error' => 'Enter NIDA in the format XXXXXXXX-XXXXX-XXXXX-XX.',
                 'code' => 'invalid_nida',
             ], 422);
         }
@@ -130,10 +132,10 @@ class TechnicianApiController extends Controller
                 'code' => 'verified_phone_locked',
             ], 422);
         }
-        if (
+        if ($nida !== '' && (
             User::where('nida', $nida)->when($existingUser, fn ($query) => $query->where('id', '!=', $existingUser->id))->exists()
             || Technician::where('nida', $nida)->where('email', '!=', $email)->exists()
-        ) {
+        )) {
             return response()->json([
                 'error' => 'This NIDA number is already registered.',
                 'code' => 'nida_already_registered',
@@ -142,13 +144,19 @@ class TechnicianApiController extends Controller
 
         $firebasePhone = $this->phoneAuth->verifyIdToken((string) $data['phoneVerificationIdToken'], $phone);
         $this->emailVerification->assertVerified($email, (string) $data['emailVerificationCode']);
+        $nidaIdImage = $data['role'] === 'technician'
+            ? $this->validatedImageDataUri((string) ($data['nidaIdImage'] ?? ''), 'nidaIdImage')
+            : null;
+        $faceImage = $data['role'] === 'technician'
+            ? $this->validatedImageDataUri((string) ($data['faceImage'] ?? ''), 'faceImage')
+            : null;
 
         $user = User::updateOrCreate(
             ['email' => $email],
             [
                 'role' => $data['role'],
                 'name' => $data['name'],
-                'nida' => $nida,
+                'nida' => $nida === '' ? $existingUser?->nida : $nida,
                 'phone' => $phone,
                 'phone_verified_at' => $existingUser?->phone_verified_at ?? now(),
                 'firebase_phone_uid' => $firebasePhone['uid'],
@@ -177,16 +185,20 @@ class TechnicianApiController extends Controller
                     'device_token' => $deviceToken,
                     'skills' => $this->normalizeSkills($data['skills'] ?? []),
                     'image' => $data['image'] ?? null,
+                    'nida_id_image' => $nidaIdImage,
+                    'face_image' => $faceImage,
+                    'registration_review_status' => 'pending',
+                    'registration_review_note' => null,
+                    'registration_reviewed_at' => null,
+                    'registration_reviewed_by' => null,
                     'latitude' => $latitude,
                     'longitude' => $longitude,
-                    'available' => true,
+                    'available' => false,
                     'last_seen_at' => now(),
                 ],
             );
-            $this->requestTechnicianRegistrationPayment($technician);
 
             $payload['technician'] = $this->technicianDto($technician->fresh());
-            $payload['registrationPayment'] = $this->registrationPaymentDto($technician->fresh(), true);
         }
 
         $this->emailVerification->forget($email);
@@ -258,6 +270,14 @@ class TechnicianApiController extends Controller
 
     public function registrationPaymentStatus(Technician $technician): JsonResponse
     {
+        if (! $this->technicianRegistrationApproved($technician)) {
+            return response()->json([
+                'error' => 'Technician registration is still under admin review.',
+                'code' => 'admin_review_pending',
+                'registrationReview' => $this->registrationReviewDto($technician),
+            ], 403);
+        }
+
         if ($this->registrationPaymentCanBeRequested($technician->registration_payment_status)) {
             $this->requestTechnicianRegistrationPayment($technician);
             $technician = $technician->fresh();
@@ -297,6 +317,14 @@ class TechnicianApiController extends Controller
 
     public function requestRegistrationPayment(Request $request, Technician $technician): JsonResponse
     {
+        if (! $this->technicianRegistrationApproved($technician)) {
+            return response()->json([
+                'error' => 'Technician registration is still under admin review.',
+                'code' => 'admin_review_pending',
+                'registrationReview' => $this->registrationReviewDto($technician),
+            ], 403);
+        }
+
         $data = $request->validate([
             'payerPhone' => ['required', 'string', 'max:80'],
             'operator' => ['required', 'string', Rule::in($this->registrationFeeSupportedOperators())],
@@ -615,6 +643,9 @@ class TechnicianApiController extends Controller
         ]);
 
         $query = Technician::query();
+        if (Schema::hasColumn('technicians', 'registration_review_status')) {
+            $query->where('registration_review_status', 'approved');
+        }
         $query->where(function ($query): void {
             $query->whereDoesntHave('user')
                 ->orWhereHas('user', fn ($userQuery) => $userQuery->where('blocked', false));
@@ -739,6 +770,13 @@ class TechnicianApiController extends Controller
                 'code' => 'account_blocked',
             ], 403);
         }
+        if (! $this->technicianRegistrationApproved($technician)) {
+            return response()->json([
+                'error' => 'Technician registration is still under admin review.',
+                'code' => 'admin_review_pending',
+                'registrationReview' => $this->registrationReviewDto($technician),
+            ], 403);
+        }
 
         $data = $request->validate([
             'lat' => ['required', 'numeric'],
@@ -772,6 +810,14 @@ class TechnicianApiController extends Controller
 
     public function updateAvailability(Request $request, Technician $technician): JsonResponse
     {
+        if (! $this->technicianRegistrationApproved($technician)) {
+            return response()->json([
+                'error' => 'Technician registration is still under admin review.',
+                'code' => 'admin_review_pending',
+                'registrationReview' => $this->registrationReviewDto($technician),
+            ], 403);
+        }
+
         $data = $request->validate(['available' => ['required', 'boolean']]);
         $technician->update(['available' => (bool) $data['available'], 'last_seen_at' => now()]);
         $this->audit($request, 'technician.availability_updated', [
@@ -815,6 +861,12 @@ class TechnicianApiController extends Controller
         }
         if ($technician->user?->blocked) {
             return response()->json(['error' => 'Selected technician is not available.'], 422);
+        }
+        if (! $this->technicianRegistrationApproved($technician)) {
+            return response()->json([
+                'error' => 'Selected technician is not available.',
+                'code' => 'admin_review_pending',
+            ], 422);
         }
 
         $distance = $this->distanceKm($clientLat, $clientLon, $technician->latitude, $technician->longitude);
@@ -912,6 +964,12 @@ class TechnicianApiController extends Controller
             return response()->json([
                 'error' => 'This request cannot be updated because one account is blocked.',
                 'code' => 'account_blocked',
+            ], 403);
+        }
+        if ($serviceRequest->technician && ! $this->technicianRegistrationApproved($serviceRequest->technician)) {
+            return response()->json([
+                'error' => 'Technician registration is still under admin review.',
+                'code' => 'admin_review_pending',
             ], 403);
         }
 
@@ -1242,9 +1300,30 @@ class TechnicianApiController extends Controller
             'rating' => (float) $technician->rating,
             'location' => ['latitude' => $technician->latitude, 'longitude' => $technician->longitude],
             'distance' => $distance === null ? null : round($distance, 2),
+            'registrationReview' => $this->registrationReviewDto($technician),
             'registrationPayment' => $this->registrationPaymentDto($technician),
             'lastSeenAt' => $this->dateString($technician->last_seen_at),
         ];
+    }
+
+    private function registrationReviewDto(Technician $technician): array
+    {
+        return [
+            'status' => $technician->registration_review_status ?? 'approved',
+            'note' => $technician->registration_review_note ?? '',
+            'reviewedAt' => $this->dateString($technician->registration_reviewed_at),
+            'hasNidaIdImage' => filled($technician->nida_id_image),
+            'hasFaceImage' => filled($technician->face_image),
+        ];
+    }
+
+    private function technicianRegistrationApproved(Technician $technician): bool
+    {
+        if (! Schema::hasColumn('technicians', 'registration_review_status')) {
+            return true;
+        }
+
+        return ($technician->registration_review_status ?? 'approved') === 'approved';
     }
 
     private function requestTechnicianRegistrationPayment(Technician $technician): void
@@ -1526,6 +1605,28 @@ class TechnicianApiController extends Controller
     private function isValidNida(string $nida): bool
     {
         return (bool) preg_match('/^[0-9]{20}$/', $this->normalizeNida($nida));
+    }
+
+    private function validatedImageDataUri(string $value, string $field): string
+    {
+        $value = trim($value);
+        if (! preg_match('/^data:image\/(jpeg|jpg|png);base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $field => ['Capture a valid image before submitting.'],
+            ]);
+        }
+
+        $payload = preg_replace('/\s+/', '', $matches[2]) ?? '';
+        $bytes = base64_decode($payload, true);
+        if ($bytes === false || strlen($bytes) > 1_800_000) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $field => ['The captured image is too large. Retake it closer and try again.'],
+            ]);
+        }
+
+        $mime = strtolower($matches[1]) === 'png' ? 'png' : 'jpeg';
+
+        return "data:image/{$mime};base64,".base64_encode($bytes);
     }
 
     private function normalizeTanzaniaPhone(string $phone): string

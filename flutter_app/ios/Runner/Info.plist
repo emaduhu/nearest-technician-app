@@ -33,6 +33,8 @@
 	<string>Nearest Technician uses your location to find nearby technicians, sync technician availability, and track service requests.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Nearest Technician uses location updates to keep active service requests accurate when tracking is enabled.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Nearest Technician uses the camera to capture technician NIDA ID and face photos for registration review.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
