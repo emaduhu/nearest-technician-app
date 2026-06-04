@@ -306,6 +306,13 @@ class _RegisterPageState extends State<RegisterPage> {
         phoneNumber: '+$phone',
         timeout: const Duration(seconds: 60),
         verificationCompleted: (credential) async {
+          final smsCode = credential.smsCode;
+          if (smsCode != null && smsCode.isNotEmpty && mounted) {
+            setState(() {
+              _smsCodeCtrl.text = smsCode;
+              _status = l10n.smsCodeAutoRead;
+            });
+          }
           await _completePhoneVerification(credential, l10n);
         },
         verificationFailed: (error) {
@@ -594,14 +601,17 @@ class _RegisterPageState extends State<RegisterPage> {
                               _VerificationNotice(
                                   message: l10n.transactionPhoneNotice),
                               const SizedBox(height: 10),
-                              OutlinedButton.icon(
+                              _VerificationActionRow(
+                                helper: l10n.smsAutoReadHint,
+                                verified: _phoneVerified,
+                                sent: _phoneCodeSent,
                                 onPressed: _loading ? null : _sendPhoneCode,
-                                icon: Icon(_phoneVerified
-                                    ? Icons.verified_outlined
-                                    : Icons.sms_outlined),
                                 label: Text(_phoneVerified
                                     ? l10n.phoneVerified
                                     : l10n.sendPhoneCode),
+                                icon: _phoneVerified
+                                    ? Icons.verified_outlined
+                                    : Icons.sms_outlined,
                               ),
                               if (_phoneCodeSent && !_phoneVerified) ...[
                                 const SizedBox(height: 10),
@@ -624,12 +634,11 @@ class _RegisterPageState extends State<RegisterPage> {
                                   },
                                 ),
                                 const SizedBox(height: 10),
-                                FilledButton.icon(
+                                _TinyActionButton(
                                   onPressed:
                                       _loading ? null : _confirmPhoneCode,
-                                  icon:
-                                      const Icon(Icons.verified_user_outlined),
-                                  label: Text(l10n.verifyPhone),
+                                  icon: Icons.verified_user_outlined,
+                                  label: l10n.verifyPhone,
                                 ),
                               ],
                               if (_role == 'technician') ...[
@@ -662,14 +671,17 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                             if (!_loginMode) ...[
                               const SizedBox(height: 10),
-                              OutlinedButton.icon(
+                              _VerificationActionRow(
+                                helper: l10n.enterVerificationCode,
+                                verified: _emailVerified,
+                                sent: _emailCodeSent,
                                 onPressed: _loading ? null : _sendEmailCode,
-                                icon: Icon(_emailVerified
-                                    ? Icons.mark_email_read_outlined
-                                    : Icons.outgoing_mail),
                                 label: Text(_emailVerified
                                     ? l10n.emailVerified
                                     : l10n.sendEmailCode),
+                                icon: _emailVerified
+                                    ? Icons.mark_email_read_outlined
+                                    : Icons.outgoing_mail,
                               ),
                               if (_emailCodeSent && !_emailVerified) ...[
                                 const SizedBox(height: 10),
@@ -692,11 +704,11 @@ class _RegisterPageState extends State<RegisterPage> {
                                   },
                                 ),
                                 const SizedBox(height: 10),
-                                FilledButton.icon(
+                                _TinyActionButton(
                                   onPressed:
                                       _loading ? null : _confirmEmailCode,
-                                  icon: const Icon(Icons.verified_outlined),
-                                  label: Text(l10n.verifyEmail),
+                                  icon: Icons.verified_outlined,
+                                  label: l10n.verifyEmail,
                                 ),
                               ],
                             ],
@@ -713,6 +725,13 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                             const SizedBox(height: 18),
                             FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 42),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 11,
+                                ),
+                              ),
                               onPressed: _loading ? null : _submit,
                               icon: Icon(_loginMode
                                   ? Icons.login
@@ -787,6 +806,126 @@ class _VerificationNotice extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VerificationActionRow extends StatelessWidget {
+  final String helper;
+  final bool verified;
+  final bool sent;
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final Widget label;
+
+  const _VerificationActionRow({
+    required this.helper,
+    required this.verified,
+    required this.sent,
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    final borderColor = verified
+        ? const Color(0xFF99F6E4)
+        : sent
+            ? const Color(0xFFFCD34D)
+            : const Color(0xFFDCE4E8);
+    final background = verified
+        ? const Color(0xFFE7F7F3)
+        : sent
+            ? const Color(0xFFFFFBEB)
+            : const Color(0xFFF8FAFC);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final text = Row(
+            children: [
+              Icon(icon,
+                  color: verified ? color.primary : const Color(0xFF475569)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  helper,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: const Color(0xFF51616B)),
+                ),
+              ),
+            ],
+          );
+          final action = _TinyActionButton(
+            onPressed: onPressed,
+            icon: icon,
+            labelWidget: label,
+          );
+
+          if (constraints.maxWidth < 360) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                text,
+                const SizedBox(height: 8),
+                action,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: text),
+              const SizedBox(width: 8),
+              action,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TinyActionButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String? label;
+  final Widget? labelWidget;
+
+  const _TinyActionButton({
+    required this.onPressed,
+    required this.icon,
+    this.label,
+    this.labelWidget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    return TextButton.icon(
+      style: TextButton.styleFrom(
+        foregroundColor: color.primary,
+        backgroundColor: Colors.white,
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+          side: const BorderSide(color: Color(0xFFDCE4E8)),
+        ),
+      ),
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: labelWidget ?? Text(label ?? ''),
     );
   }
 }

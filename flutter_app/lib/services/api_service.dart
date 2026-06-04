@@ -232,6 +232,25 @@ class ApiService {
     });
   }
 
+  Future<Map<String, dynamic>> requestRegistrationPayment(
+    String technicianId, {
+    required String payerPhone,
+    required String operator,
+  }) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+        Uri.parse(
+            '$serverUrl/api/technicians/$technicianId/registration-payment'),
+        headers: _headers,
+        body: jsonEncode({
+          'payerPhone': payerPhone,
+          'operator': operator,
+        }),
+      ));
+    });
+  }
+
   Future<dynamic> _decodeAny(http.Response res) async {
     final dynamic body = _tryDecode(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {

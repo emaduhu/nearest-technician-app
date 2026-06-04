@@ -44,6 +44,26 @@ class AppLocalizations {
   String get registrationFeeOperators => isSwahili
       ? 'Tumia Yas, Airtel au Halopesa. Ombi likionyesha CLICKPESA, endelea. M-Pesa itaongezwa hivi karibuni.'
       : 'Use Yas, Airtel, or Halopesa. If the prompt shows CLICKPESA, proceed. M-Pesa is coming soon.';
+  String get paymentPushTitle =>
+      isSwahili ? 'Tuma ombi la USSD' : 'Send USSD payment push';
+  String get payingNumber => isSwahili ? 'Namba itakayolipa' : 'Paying number';
+  String get payingNumberHint => isSwahili
+      ? 'Weka namba ya Yas, Airtel au Halopesa'
+      : 'Enter a Yas, Airtel, or Halopesa number';
+  String get paymentOperator => isSwahili ? 'Mtandao' : 'Operator';
+  String get sendUssdPush => isSwahili ? 'Tuma USSD' : 'Send USSD';
+  String get trackPayment => isSwahili ? 'Fuatilia' : 'Track';
+  String get paymentActionsTitle =>
+      isSwahili ? 'Majaribio yaliyofuatiliwa' : 'Tracked payment attempts';
+  String get sendingPaymentPush =>
+      isSwahili ? 'Inatuma ombi la malipo...' : 'Sending payment push...';
+  String get paymentPushSent => isSwahili
+      ? 'Ombi la malipo limetumwa. Angalia simu ya mlipaji.'
+      : 'Payment push sent. Check the payer phone.';
+  String get tracked => isSwahili ? 'imefuatiliwa' : 'tracked';
+  String paymentActionLine(String operator, String phone, String status) => isSwahili
+      ? '${operator.isEmpty ? '-' : operator} | ${phone.isEmpty ? '-' : phone} | ${registrationPaymentStatus(status)}'
+      : '${operator.isEmpty ? '-' : operator} | ${phone.isEmpty ? '-' : phone} | ${registrationPaymentStatus(status)}';
   String get skillsComma =>
       isSwahili ? 'Ujuzi, tenganisha kwa koma' : 'Skills, comma separated';
   String get email => isSwahili ? 'Barua pepe' : 'Email';
@@ -85,6 +105,12 @@ class AppLocalizations {
   String get phoneCodeSent => isSwahili
       ? 'Msimbo umetumwa kwa simu yako'
       : 'A code has been sent to your phone';
+  String get smsAutoReadHint => isSwahili
+      ? 'Tukipata SMS kiotomatiki, msimbo utajazwa bila kubonyeza kitu.'
+      : 'If Android reads the SMS automatically, the code fills itself.';
+  String get smsCodeAutoRead => isSwahili
+      ? 'Msimbo wa SMS umejazwa kiotomatiki'
+      : 'SMS code filled automatically';
   String get phoneVerified =>
       isSwahili ? 'Simu imethibitishwa' : 'Phone verified';
   String get phoneVerificationRequired => isSwahili
@@ -111,6 +137,9 @@ class AppLocalizations {
   String get invalidVerificationCode => isSwahili
       ? 'Weka msimbo wa tarakimu 6'
       : 'Enter the 6-digit verification code';
+  String get enterVerificationCode => isSwahili
+      ? 'Weka msimbo wa tarakimu 6 uliotumwa kwako.'
+      : 'Enter the 6-digit code sent to you.';
   String get minPassword =>
       isSwahili ? 'Angalau herufi 6' : 'Minimum 6 characters';
   String get signingIn => isSwahili ? 'Inaingia...' : 'Signing in...';

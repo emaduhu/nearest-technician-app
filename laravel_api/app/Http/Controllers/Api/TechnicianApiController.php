@@ -17,6 +17,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -151,6 +153,7 @@ class TechnicianApiController extends Controller
         );
 
         $payload = ['ok' => true, 'user' => $this->userDto($user)];
+        $technician = null;
         if ($data['role'] === 'technician') {
             $technician = Technician::updateOrCreate(
                 ['email' => $email],
@@ -171,10 +174,23 @@ class TechnicianApiController extends Controller
             $this->requestTechnicianRegistrationPayment($technician);
 
             $payload['technician'] = $this->technicianDto($technician->fresh());
-            $payload['registrationPayment'] = $this->registrationPaymentDto($technician->fresh());
+            $payload['registrationPayment'] = $this->registrationPaymentDto($technician->fresh(), true);
         }
 
         $this->emailVerification->forget($email);
+        $this->audit($request, 'auth.registered', [
+            'actor_role' => $user->role,
+            'actor_user_id' => $user->id,
+            'actor_technician_id' => $technician?->id,
+            'entity_type' => 'user',
+            'entity_id' => $user->id,
+            'metadata' => [
+                'role' => $data['role'],
+                'email' => $email,
+                'phone' => $this->phoneHint($phone),
+                'hasDeviceToken' => filled($deviceToken),
+            ],
+        ]);
 
         return response()->json($payload, 201);
     }
@@ -195,6 +211,11 @@ class TechnicianApiController extends Controller
         }
 
         $this->emailVerification->sendCode($email);
+        $this->audit($request, 'email_verification.sent', [
+            'entity_type' => 'email',
+            'entity_id' => $email,
+            'metadata' => ['email' => $email],
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -210,6 +231,11 @@ class TechnicianApiController extends Controller
         ]);
 
         $this->emailVerification->verifyCode($data['email'], $data['code']);
+        $this->audit($request, 'email_verification.verified', [
+            'entity_type' => 'email',
+            'entity_id' => strtolower(trim($data['email'])),
+            'metadata' => ['email' => strtolower(trim($data['email']))],
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -227,7 +253,7 @@ class TechnicianApiController extends Controller
         if (blank($technician->registration_payment_order_reference)) {
             return response()->json([
                 'ok' => true,
-                'registrationPayment' => $this->registrationPaymentDto($technician),
+                'registrationPayment' => $this->registrationPaymentDto($technician, true),
             ]);
         }
 
@@ -252,8 +278,221 @@ class TechnicianApiController extends Controller
 
         return response()->json([
             'ok' => true,
-            'registrationPayment' => $this->registrationPaymentDto($technician->fresh()),
+            'registrationPayment' => $this->registrationPaymentDto($technician->fresh(), true),
         ]);
+    }
+
+    public function requestRegistrationPayment(Request $request, Technician $technician): JsonResponse
+    {
+        $data = $request->validate([
+            'payerPhone' => ['required', 'string', 'max:80'],
+            'operator' => ['required', 'string', Rule::in($this->registrationFeeSupportedOperators())],
+        ]);
+
+        $payerPhone = $this->normalizeTanzaniaPhone((string) $data['payerPhone']);
+        $operator = (string) $data['operator'];
+
+        if (! $this->isValidTanzaniaPhone($payerPhone)) {
+            $this->audit($request, 'payment_push.rejected', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'reason' => 'invalid_phone',
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                ],
+            ]);
+
+            return response()->json([
+                'error' => 'Enter a valid Tanzania mobile phone number.',
+                'code' => 'invalid_phone',
+            ], 422);
+        }
+
+        if ($this->isMpesaPhoneNumber($payerPhone)) {
+            $this->audit($request, 'payment_push.rejected', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'reason' => 'unsupported_payment_operator',
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                ],
+            ]);
+
+            return response()->json([
+                'error' => 'Registration fee supports Yas, Airtel, and Halopesa only. M-Pesa is not supported yet.',
+                'code' => 'unsupported_payment_operator',
+                'supportedOperators' => $this->registrationFeeSupportedOperators(),
+            ], 422);
+        }
+
+        if ($this->registrationPaymentIsPaid($technician->registration_payment_status)) {
+            $this->audit($request, 'payment_push.skipped', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'reason' => 'already_paid',
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                    'status' => $technician->registration_payment_status,
+                ],
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Registration fee is already paid.',
+                'registrationPayment' => $this->registrationPaymentDto($technician, true),
+            ]);
+        }
+
+        $amount = $this->payments->technicianRegistrationFee();
+        $currency = config('services.clickpesa.currency', 'TZS');
+        $orderReference = $this->payments->newOrderReference($technician->id);
+        $actionId = $this->createPaymentAction($technician, [
+            'operator' => $operator,
+            'payer_phone' => $payerPhone,
+            'amount' => $amount,
+            'currency' => $currency,
+            'status' => 'initiated',
+            'order_reference' => $orderReference,
+            'requested_at' => now(),
+        ]);
+
+        if (! $this->payments->configured()) {
+            $message = 'ClickPesa credentials are not configured.';
+            $this->updatePaymentAction($actionId, [
+                'status' => 'not_configured',
+                'error' => $message,
+            ]);
+            $technician->update([
+                'registration_fee_amount' => $amount,
+                'registration_fee_currency' => $currency,
+                'registration_payment_status' => 'not_configured',
+                'registration_payment_order_reference' => $orderReference,
+                'registration_payment_response' => ['message' => $message],
+                'registration_payment_requested_at' => now(),
+            ]);
+            $this->audit($request, 'payment_push.failed', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'reason' => 'payment_not_configured',
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                    'orderReference' => $orderReference,
+                ],
+            ]);
+
+            return response()->json([
+                'error' => $message,
+                'code' => 'payment_not_configured',
+                'registrationPayment' => $this->registrationPaymentDto($technician->fresh(), true),
+            ], 503);
+        }
+
+        try {
+            $response = $this->payments->initiateTechnicianRegistrationPayment(
+                $payerPhone,
+                $orderReference,
+            );
+            $status = strtolower((string) ($response['status'] ?? 'processing'));
+
+            $this->updatePaymentAction($actionId, [
+                'status' => $status,
+                'payment_id' => $response['id'] ?? null,
+                'response' => $response,
+            ]);
+            $technician->update([
+                'registration_fee_amount' => $amount,
+                'registration_fee_currency' => $currency,
+                'registration_payment_status' => $status,
+                'registration_payment_order_reference' => $response['orderReference'] ?? $orderReference,
+                'registration_payment_id' => $response['id'] ?? null,
+                'registration_payment_response' => [
+                    'operator' => $operator,
+                    'payerPhone' => $payerPhone,
+                    'providerResponse' => $response,
+                ],
+                'registration_payment_requested_at' => now(),
+            ]);
+            $this->audit($request, 'payment_push.sent', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                    'orderReference' => $response['orderReference'] ?? $orderReference,
+                    'paymentId' => $response['id'] ?? null,
+                    'status' => $status,
+                ],
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Payment push has been sent.',
+                'registrationPayment' => $this->registrationPaymentDto($technician->fresh(), true),
+            ], 201);
+        } catch (Throwable $exception) {
+            Log::error('Unable to initiate technician registration payment from mobile app.', [
+                'technician_id' => $technician->id,
+                'operator' => $operator,
+                'payer_phone' => $payerPhone,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->updatePaymentAction($actionId, [
+                'status' => 'request_failed',
+                'error' => $exception->getMessage(),
+            ]);
+            $technician->update([
+                'registration_fee_amount' => $amount,
+                'registration_fee_currency' => $currency,
+                'registration_payment_status' => 'request_failed',
+                'registration_payment_order_reference' => $orderReference,
+                'registration_payment_response' => [
+                    'operator' => $operator,
+                    'payerPhone' => $payerPhone,
+                    'message' => $exception->getMessage(),
+                ],
+                'registration_payment_requested_at' => now(),
+            ]);
+            $this->audit($request, 'payment_push.failed', [
+                'actor_role' => 'technician',
+                'actor_user_id' => $technician->user_id,
+                'actor_technician_id' => $technician->id,
+                'entity_type' => 'technician',
+                'entity_id' => $technician->id,
+                'metadata' => [
+                    'reason' => 'payment_request_failed',
+                    'operator' => $operator,
+                    'payerPhone' => $this->phoneHint($payerPhone),
+                    'orderReference' => $orderReference,
+                    'message' => $exception->getMessage(),
+                ],
+            ]);
+
+            return response()->json([
+                'error' => $exception->getMessage(),
+                'code' => 'payment_request_failed',
+                'registrationPayment' => $this->registrationPaymentDto($technician->fresh(), true),
+            ], 502);
+        }
     }
 
     public function login(Request $request): JsonResponse
@@ -268,12 +507,26 @@ class TechnicianApiController extends Controller
         $email = strtolower(trim($data['email']));
         $user = User::where('email', $email)->first();
         if (!$user || !Hash::check($data['password'], $user->password)) {
+            $this->audit($request, 'auth.login_failed', [
+                'entity_type' => 'user',
+                'entity_id' => $email,
+                'metadata' => ['email' => $email, 'reason' => 'invalid_credentials'],
+            ]);
+
             return response()->json([
                 'error' => 'Incorrect email or password',
                 'code' => 'invalid_credentials',
             ], 401);
         }
         if ($user->blocked) {
+            $this->audit($request, 'auth.login_failed', [
+                'actor_role' => $user->role,
+                'actor_user_id' => $user->id,
+                'entity_type' => 'user',
+                'entity_id' => $user->id,
+                'metadata' => ['email' => $email, 'reason' => 'account_blocked'],
+            ]);
+
             return response()->json([
                 'error' => 'This account has been blocked. Contact support for help.',
                 'code' => 'account_blocked',
@@ -290,7 +543,19 @@ class TechnicianApiController extends Controller
         $technician = Technician::where('email', $email)->first();
         if ($technician) {
             $payload['technician'] = $this->technicianDto($technician);
+            $payload['registrationPayment'] = $this->registrationPaymentDto($technician, true);
         }
+        $this->audit($request, 'auth.login', [
+            'actor_role' => $user->role,
+            'actor_user_id' => $user->id,
+            'actor_technician_id' => $technician?->id,
+            'entity_type' => 'user',
+            'entity_id' => $user->id,
+            'metadata' => [
+                'email' => $email,
+                'hasDeviceToken' => filled($deviceToken),
+            ],
+        ]);
 
         return response()->json($payload);
     }
@@ -496,6 +761,14 @@ class TechnicianApiController extends Controller
     {
         $data = $request->validate(['available' => ['required', 'boolean']]);
         $technician->update(['available' => (bool) $data['available'], 'last_seen_at' => now()]);
+        $this->audit($request, 'technician.availability_updated', [
+            'actor_role' => 'technician',
+            'actor_user_id' => $technician->user_id,
+            'actor_technician_id' => $technician->id,
+            'entity_type' => 'technician',
+            'entity_id' => $technician->id,
+            'metadata' => ['available' => (bool) $data['available']],
+        ]);
 
         return response()->json(['ok' => true, 'technician' => $this->technicianDto($technician->fresh())]);
     }
@@ -545,8 +818,15 @@ class TechnicianApiController extends Controller
             'distance_km' => $distance === null ? null : round($distance, 2),
         ]);
 
-        $technicianTitle = 'New service request';
-        $technicianBody = "{$client->name} requested {$serviceRequest->skill}. Open the app to accept or reject.";
+        $skillLabel = $this->notificationSkill($serviceRequest->skill);
+        $distanceLabel = $serviceRequest->distance_km === null
+            ? ''
+            : ' about '.number_format((float) $serviceRequest->distance_km, 1).' km away';
+        $technicianTitle = "New {$skillLabel} request";
+        $technicianBody = "{$client->name} needs {$skillLabel}{$distanceLabel}. Open the app to accept or reject.";
+        if (filled($serviceRequest->description)) {
+            $technicianBody .= ' Details: '.Str::limit((string) $serviceRequest->description, 90);
+        }
         $technicianData = [
             'requestId' => $serviceRequest->id,
             'type' => 'tech_request',
@@ -554,6 +834,7 @@ class TechnicianApiController extends Controller
             'clientName' => $client->name,
             'technicianId' => $technician->id,
             'skill' => $serviceRequest->skill,
+            'distanceKm' => $serviceRequest->distance_km,
             'title' => $technicianTitle,
             'body' => $technicianBody,
             'actions' => 'accept,reject',
@@ -573,6 +854,22 @@ class TechnicianApiController extends Controller
                 'has_technician_token' => filled($technicianToken),
             ]);
         }
+        $this->audit($request, 'service_request.created', [
+            'actor_role' => 'client',
+            'actor_user_id' => $client->id,
+            'entity_type' => 'service_request',
+            'entity_id' => $serviceRequest->id,
+            'metadata' => [
+                'technicianId' => $technician->id,
+                'skill' => $serviceRequest->skill,
+                'distanceKm' => $serviceRequest->distance_km,
+                'notificationRecipient' => 'technician',
+                'notificationTitle' => $technicianTitle,
+                'notificationBody' => $technicianBody,
+                'notificationSent' => $pushed,
+                'hasRecipientToken' => filled($technicianToken),
+            ],
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -615,16 +912,21 @@ class TechnicianApiController extends Controller
 
         $serviceRequest->load(['client', 'technician']);
         $technicianName = $serviceRequest->technician?->name ?? 'Technician';
-        $clientNotificationRequired = in_array($status, ['accepted', 'rejected'], true);
+        $skillLabel = $this->notificationSkill($serviceRequest->skill);
+        $clientNotificationRequired = in_array($status, ['accepted', 'rejected', 'completed', 'cancelled'], true);
         $notificationTitle = match ($status) {
-            'accepted' => 'Technician accepted your request',
-            'rejected' => 'Technician rejected your request',
-            default => 'Technician response',
+            'accepted' => 'Technician is on the way',
+            'rejected' => 'Request declined',
+            'completed' => 'Service completed',
+            'cancelled' => 'Service request cancelled',
+            default => 'Request updated',
         };
         $notificationBody = match ($status) {
-            'accepted' => "{$technicianName} accepted your request and is on the way.",
-            'rejected' => "{$technicianName} rejected your request. Please choose another technician.",
-            default => "{$technicianName} {$status} your request",
+            'accepted' => "{$technicianName} accepted your {$skillLabel} request. Open the app to track live location.",
+            'rejected' => "{$technicianName} is not available for your {$skillLabel} request. Please choose another technician.",
+            'completed' => "Your {$skillLabel} service was marked completed.",
+            'cancelled' => "Your {$skillLabel} service request was cancelled.",
+            default => "Your {$skillLabel} request was updated.",
         };
         $notificationData = [
             'requestId' => $serviceRequest->id,
@@ -632,15 +934,18 @@ class TechnicianApiController extends Controller
             'status' => $status,
             'technicianId' => $serviceRequest->technician_id,
             'technicianName' => $technicianName,
+            'skill' => $serviceRequest->skill,
             'title' => $notificationTitle,
             'body' => $notificationBody,
         ];
 
         $clientToken = $serviceRequest->client?->device_token;
-        $pushed = $this->push->send($clientToken, [
-            'title' => $notificationTitle,
-            'body' => $notificationBody,
-        ], $notificationData);
+        $pushed = $clientNotificationRequired
+            ? $this->push->send($clientToken, [
+                'title' => $notificationTitle,
+                'body' => $notificationBody,
+            ], $notificationData)
+            : false;
 
         if ($clientNotificationRequired && ! $pushed) {
             Log::warning('Technician response notification was not delivered to the client.', [
@@ -651,6 +956,23 @@ class TechnicianApiController extends Controller
                 'has_client_token' => filled($clientToken),
             ]);
         }
+        $this->audit($request, 'service_request.responded', [
+            'actor_role' => 'technician',
+            'actor_user_id' => $serviceRequest->technician?->user_id,
+            'actor_technician_id' => $serviceRequest->technician_id,
+            'entity_type' => 'service_request',
+            'entity_id' => $serviceRequest->id,
+            'metadata' => [
+                'clientId' => $serviceRequest->client_id,
+                'status' => $status,
+                'notificationRecipient' => 'client',
+                'notificationRequired' => $clientNotificationRequired,
+                'notificationTitle' => $notificationTitle,
+                'notificationBody' => $notificationBody,
+                'notificationSent' => $pushed,
+                'hasRecipientToken' => filled($clientToken),
+            ],
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -696,6 +1018,17 @@ class TechnicianApiController extends Controller
                 'rating' => round((((float) $technician->rating) + (int) $data['rating']) / 2, 2),
             ]);
         }
+        $this->audit($request, 'service_request.completed', [
+            'actor_role' => 'client',
+            'actor_user_id' => $serviceRequest->client_id,
+            'actor_technician_id' => $serviceRequest->technician_id,
+            'entity_type' => 'service_request',
+            'entity_id' => $serviceRequest->id,
+            'metadata' => [
+                'rating' => (int) $data['rating'],
+                'hasReport' => filled($data['report'] ?? null),
+            ],
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -756,6 +1089,20 @@ class TechnicianApiController extends Controller
             'request_id' => $serviceRequest->id,
             'reporter_role' => $reporterRole,
             'reported_role' => $report['reported_role'],
+        ]);
+        $this->audit($request, 'abuse_report.submitted', [
+            'actor_role' => $reporterRole,
+            'actor_user_id' => $report['reporter_user_id'],
+            'actor_technician_id' => $report['reporter_technician_id'],
+            'entity_type' => 'abuse_report',
+            'entity_id' => $reportId,
+            'metadata' => [
+                'serviceRequestId' => $serviceRequest->id,
+                'reportedRole' => $report['reported_role'],
+                'reportedUserId' => $report['reported_user_id'],
+                'reportedTechnicianId' => $report['reported_technician_id'],
+                'reason' => $data['reason'] ?? 'abuse_or_misconduct',
+            ],
         ]);
 
         return response()->json([
@@ -902,17 +1249,33 @@ class TechnicianApiController extends Controller
         }
 
         $orderReference = $this->payments->newOrderReference($technician->id);
+        $actionId = $this->createPaymentAction($technician, [
+            'operator' => 'Auto',
+            'payer_phone' => $this->normalizeTanzaniaPhone((string) $technician->phone),
+            'amount' => $this->payments->technicianRegistrationFee(),
+            'currency' => config('services.clickpesa.currency', 'TZS'),
+            'status' => 'initiated',
+            'order_reference' => $orderReference,
+            'requested_at' => now(),
+        ]);
 
         try {
             $response = $this->payments->initiateTechnicianRegistrationPayment(
                 (string) $technician->phone,
                 $orderReference,
             );
+            $status = strtolower((string) ($response['status'] ?? 'processing'));
+
+            $this->updatePaymentAction($actionId, [
+                'status' => $status,
+                'payment_id' => $response['id'] ?? null,
+                'response' => $response,
+            ]);
 
             $technician->update([
                 'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
                 'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
-                'registration_payment_status' => strtolower((string) ($response['status'] ?? 'processing')),
+                'registration_payment_status' => $status,
                 'registration_payment_order_reference' => $response['orderReference'] ?? $orderReference,
                 'registration_payment_id' => $response['id'] ?? null,
                 'registration_payment_response' => $response,
@@ -924,6 +1287,10 @@ class TechnicianApiController extends Controller
                 'message' => $exception->getMessage(),
             ]);
 
+            $this->updatePaymentAction($actionId, [
+                'status' => 'request_failed',
+                'error' => $exception->getMessage(),
+            ]);
             $technician->update([
                 'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
                 'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
@@ -940,13 +1307,20 @@ class TechnicianApiController extends Controller
         return in_array($status, ['processing', 'pending', 'success', 'settled'], true);
     }
 
+    private function registrationPaymentIsPaid(?string $status): bool
+    {
+        return in_array($status, ['success', 'settled'], true);
+    }
+
     private function registrationPaymentCanBeRequested(?string $status): bool
     {
         return in_array($status, [null, '', 'not_requested', 'not_configured', 'request_failed', 'failed'], true);
     }
 
-    private function registrationPaymentDto(Technician $technician): array
+    private function registrationPaymentDto(Technician $technician, bool $includeActions = false): array
     {
+        $actions = $includeActions ? $this->paymentActionsForTechnician($technician) : [];
+
         return [
             'amount' => (int) ($technician->registration_fee_amount ?? $this->payments->technicianRegistrationFee()),
             'currency' => $technician->registration_fee_currency ?? config('services.clickpesa.currency', 'TZS'),
@@ -956,7 +1330,135 @@ class TechnicianApiController extends Controller
             'supportedOperators' => $this->registrationFeeSupportedOperators(),
             'unsupportedOperatorMessage' => 'Use Yas, Airtel, or Halopesa for the registration fee. M-Pesa is coming soon.',
             'requestedAt' => $this->dateString($technician->registration_payment_requested_at),
+            'lastAction' => $actions[0] ?? null,
+            'actions' => $actions,
         ];
+    }
+
+    private function createPaymentAction(Technician $technician, array $data): ?int
+    {
+        if (! $this->paymentActionTrackingEnabled()) {
+            return null;
+        }
+
+        return (int) DB::table('technician_payment_actions')->insertGetId($this->preparePaymentActionData([
+            ...$data,
+            'technician_id' => $technician->id,
+            'user_id' => $technician->user_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
+    private function updatePaymentAction(?int $actionId, array $data): void
+    {
+        if ($actionId === null || ! $this->paymentActionTrackingEnabled()) {
+            return;
+        }
+
+        DB::table('technician_payment_actions')
+            ->where('id', $actionId)
+            ->update($this->preparePaymentActionData([
+                ...$data,
+                'updated_at' => now(),
+            ]));
+    }
+
+    private function preparePaymentActionData(array $data): array
+    {
+        if (isset($data['response']) && is_array($data['response'])) {
+            $data['response'] = json_encode($data['response']);
+        }
+
+        return $data;
+    }
+
+    private function paymentActionsForTechnician(Technician $technician): array
+    {
+        if (! $this->paymentActionTrackingEnabled()) {
+            return [];
+        }
+
+        return DB::table('technician_payment_actions')
+            ->where('technician_id', $technician->id)
+            ->latest('id')
+            ->limit(5)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (string) $row->id,
+                'operator' => $row->operator ?? '',
+                'payerPhone' => $row->payer_phone ?? '',
+                'amount' => (int) $row->amount,
+                'currency' => $row->currency ?? 'TZS',
+                'status' => $row->status ?? '',
+                'orderReference' => $row->order_reference ?? '',
+                'paymentId' => $row->payment_id ?? '',
+                'error' => $row->error ?? '',
+                'requestedAt' => $this->dateTimeString($row->requested_at),
+            ])
+            ->all();
+    }
+
+    private function paymentActionTrackingEnabled(): bool
+    {
+        return Schema::hasTable('technician_payment_actions');
+    }
+
+    private function audit(Request $request, string $event, array $data = []): void
+    {
+        $metadata = $data['metadata'] ?? [];
+        $payload = [
+            'event' => $event,
+            'actor_role' => $data['actor_role'] ?? null,
+            'actor_user_id' => $data['actor_user_id'] ?? null,
+            'actor_technician_id' => $data['actor_technician_id'] ?? null,
+            'entity_type' => $data['entity_type'] ?? null,
+            'entity_id' => isset($data['entity_id']) ? (string) $data['entity_id'] : null,
+            'ip_address' => $request->ip(),
+            'user_agent' => Str::limit((string) $request->userAgent(), 1000, ''),
+            'metadata' => is_array($metadata) ? json_encode($metadata) : null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        if (! Schema::hasTable('audit_logs')) {
+            Log::info('Audit event recorded before audit_logs migration.', [
+                'event' => $event,
+                'entity_type' => $payload['entity_type'],
+                'entity_id' => $payload['entity_id'],
+                'metadata' => $metadata,
+            ]);
+
+            return;
+        }
+
+        try {
+            DB::table('audit_logs')->insert($payload);
+        } catch (Throwable $exception) {
+            Log::warning('Unable to write audit log.', [
+                'event' => $event,
+                'entity_type' => $payload['entity_type'],
+                'entity_id' => $payload['entity_id'],
+                'message' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function notificationSkill(?string $skill): string
+    {
+        $skill = trim((string) $skill);
+
+        return $skill === '' ? 'service' : $skill;
+    }
+
+    private function phoneHint(?string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', max(strlen($digits) - 4, 0)).substr($digits, -4);
     }
 
     private function registrationFeeSupportedOperators(): array
@@ -1028,5 +1530,18 @@ class TechnicianApiController extends Controller
     private function dateString(mixed $value): ?string
     {
         return $value instanceof Carbon ? $value->toISOString() : null;
+    }
+
+    private function dateTimeString(mixed $value): ?string
+    {
+        if ($value instanceof Carbon) {
+            return $value->toISOString();
+        }
+
+        if (blank($value)) {
+            return null;
+        }
+
+        return Carbon::parse($value)->toISOString();
     }
 }

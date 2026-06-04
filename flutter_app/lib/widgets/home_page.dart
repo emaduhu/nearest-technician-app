@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   final FcmService _fcm = FcmService();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _descriptionCtrl = TextEditingController();
+  final TextEditingController _paymentPhoneCtrl = TextEditingController();
   Timer? _debounce;
   Timer? _historyTimer;
   Timer? _trackingTimer;
@@ -38,14 +39,18 @@ class _HomePageState extends State<HomePage> {
 
   String _status = '';
   bool _loading = false;
+  bool _paymentLoading = false;
   bool _available = true;
   bool _onlyAvailable = true;
   double _maxDistanceKm = 25;
   double _minRating = 0;
+  String _selectedPaymentOperator = 'Yas';
   String? _deviceToken;
   Map<String, dynamic>? _registrationPayment;
   List<dynamic> _results = [];
   List<dynamic> _history = [];
+
+  static const List<String> _paymentOperators = ['Yas', 'Airtel', 'Halopesa'];
 
   Map<String, dynamic> get _user =>
       Map<String, dynamic>.from(widget.session['user'] as Map);
@@ -61,9 +66,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _registrationPayment = _technician?['registrationPayment'] is Map
-        ? Map<String, dynamic>.from(_technician!['registrationPayment'] as Map)
-        : null;
+    final sessionPayment = widget.session['registrationPayment'];
+    _registrationPayment = sessionPayment is Map
+        ? Map<String, dynamic>.from(sessionPayment)
+        : _technician?['registrationPayment'] is Map
+            ? Map<String, dynamic>.from(
+                _technician!['registrationPayment'] as Map)
+            : null;
+    _paymentPhoneCtrl.text =
+        _localTanzaniaPhone(_technician?['phone'] ?? _user['phone'] ?? '');
     _initializeForegroundUpdates();
     _loadHistory();
     _startLiveLocation();
@@ -539,6 +550,85 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _sendRegistrationPaymentPush() async {
+    if (_technician == null) return;
+    final l10n = AppLocalizations.of(context);
+    final payerPhone = _normalizedTanzaniaPhone(_paymentPhoneCtrl.text);
+
+    if (!_isValidTanzaniaPhone(payerPhone)) {
+      setState(() => _status = l10n.invalidPhone);
+      return;
+    }
+
+    if (_looksLikeMpesa(payerPhone)) {
+      setState(() => _status = l10n.mpesaNotSupported);
+      return;
+    }
+
+    setState(() {
+      _paymentLoading = true;
+      _status = l10n.sendingPaymentPush;
+    });
+
+    try {
+      final response = await _api.requestRegistrationPayment(
+        _technician!['id'].toString(),
+        payerPhone: payerPhone,
+        operator: _selectedPaymentOperator,
+      );
+      final payment = response['registrationPayment'];
+      if (mounted && payment is Map) {
+        setState(() {
+          _registrationPayment = Map<String, dynamic>.from(payment);
+          _status = l10n.paymentPushSent;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = _messageForError(e, l10n));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _paymentLoading = false);
+      }
+    }
+  }
+
+  String _messageForError(Object error, AppLocalizations l10n) {
+    if (error is ApiException && error.code == 'unsupported_payment_operator') {
+      return l10n.mpesaNotSupported;
+    }
+
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _normalizedTanzaniaPhone(Object? value) {
+    final digits = value.toString().replaceAll(RegExp(r'\D+'), '');
+    if (digits.startsWith('255')) return digits;
+    if (digits.startsWith('0')) return '255${digits.substring(1)}';
+    if (digits.length == 9) return '255$digits';
+    return digits;
+  }
+
+  String _localTanzaniaPhone(Object? value) {
+    final phone = _normalizedTanzaniaPhone(value);
+    if (phone.startsWith('255') && phone.length == 12) {
+      return '0${phone.substring(3)}';
+    }
+    return value?.toString() ?? '';
+  }
+
+  bool _isValidTanzaniaPhone(Object? value) {
+    return RegExp(r'^255[67]\d{8}$').hasMatch(_normalizedTanzaniaPhone(value));
+  }
+
+  bool _looksLikeMpesa(Object? value) {
+    final phone = _normalizedTanzaniaPhone(value);
+    if (phone.length < 5 || !phone.startsWith('255')) return false;
+    final prefix = phone.substring(3, 5);
+    return const {'74', '75', '76'}.contains(prefix);
+  }
+
   Widget _clientDashboard() {
     final l10n = AppLocalizations.of(context);
     return ListView(
@@ -711,52 +801,256 @@ class _HomePageState extends State<HomePage> {
     final payment = _registrationPayment ?? {};
     final status = payment['status']?.toString() ?? '';
     final paid = status == 'success' || status == 'settled';
+    final actions = payment['actions'] is List
+        ? (payment['actions'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
+        : <Map<String, dynamic>>[];
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              paid ? Icons.verified_outlined : Icons.payments_outlined,
-              color: paid ? const Color(0xFF0F766E) : const Color(0xFFB45309),
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: paid
+                        ? const Color(0xFFE7F7F3)
+                        : const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    paid
+                        ? Icons.verified_outlined
+                        : Icons.mobile_friendly_outlined,
+                    color: paid
+                        ? const Color(0xFF0F766E)
+                        : const Color(0xFFB45309),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.registrationFeeTitle,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        l10n.registrationFeeLine(
+                          payment['amount'] ?? 5000,
+                          payment['currency'] ?? 'TZS',
+                          status,
+                        ),
+                        style: const TextStyle(color: Color(0xFF697781)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: l10n.refreshPaymentStatus,
+                  onPressed:
+                      _paymentLoading ? null : _refreshRegistrationPayment,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l10n.registrationFeeTitle,
+                    l10n.paymentPushTitle,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  Text(
-                    l10n.registrationFeeLine(
-                      payment['amount'] ?? 5000,
-                      payment['currency'] ?? 'TZS',
-                      status,
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _paymentPhoneCtrl,
+                    enabled: !paid && !_paymentLoading,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: l10n.payingNumber,
+                      hintText: '0712345678',
+                      prefixIcon: const Icon(Icons.call_outlined),
+                      helperText: l10n.payingNumberHint,
                     ),
-                    style: const TextStyle(color: Color(0xFF697781)),
                   ),
+                  const SizedBox(height: 12),
                   Text(
-                    l10n.registrationFeeOperators,
-                    style: const TextStyle(color: Color(0xFF697781)),
+                    l10n.paymentOperator,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _paymentOperators
+                        .map(
+                          (operator) => ChoiceChip(
+                            label: Text(operator),
+                            selected: _selectedPaymentOperator == operator,
+                            onSelected: paid || _paymentLoading
+                                ? null
+                                : (_) => setState(
+                                      () => _selectedPaymentOperator = operator,
+                                    ),
+                            avatar: Icon(
+                              _selectedPaymentOperator == operator
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                              size: 18,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 38),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
+                        onPressed: paid || _paymentLoading
+                            ? null
+                            : _sendRegistrationPaymentPush,
+                        icon: const Icon(Icons.send_to_mobile_outlined),
+                        label: Text(l10n.sendUssdPush),
+                      ),
+                      TextButton.icon(
+                        onPressed: _paymentLoading
+                            ? null
+                            : _refreshRegistrationPayment,
+                        icon: const Icon(Icons.sync, size: 18),
+                        label: Text(l10n.trackPayment),
+                      ),
+                    ],
+                  ),
+                  if (_paymentLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: LinearProgressIndicator(),
+                    ),
                 ],
               ),
             ),
-            IconButton(
-              tooltip: l10n.refreshPaymentStatus,
-              onPressed: _refreshRegistrationPayment,
-              icon: const Icon(Icons.refresh),
-            ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                l10n.paymentActionsTitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              ...actions.map(_paymentActionTile),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _paymentActionTile(Map<String, dynamic> action) {
+    final l10n = AppLocalizations.of(context);
+    final status = action['status']?.toString() ?? '';
+    final operator = action['operator']?.toString() ?? '';
+    final phone = action['payerPhone']?.toString() ?? '';
+    final color = _paymentStatusColor(status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(_paymentStatusIcon(status), size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l10n.paymentActionLine(operator, phone, status),
+              style: const TextStyle(color: Color(0xFF30414A)),
+            ),
+          ),
+          if ((action['requestedAt'] ?? '').toString().isNotEmpty)
+            Text(
+              l10n.tracked,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  IconData _paymentStatusIcon(String status) {
+    switch (status) {
+      case 'success':
+      case 'settled':
+        return Icons.verified_outlined;
+      case 'request_failed':
+      case 'failed':
+      case 'not_configured':
+        return Icons.error_outline;
+      case 'initiated':
+      case 'processing':
+      case 'pending':
+        return Icons.hourglass_top_outlined;
+      default:
+        return Icons.receipt_long_outlined;
+    }
+  }
+
+  Color _paymentStatusColor(String status) {
+    switch (status) {
+      case 'success':
+      case 'settled':
+        return const Color(0xFF0F766E);
+      case 'request_failed':
+      case 'failed':
+      case 'not_configured':
+        return const Color(0xFFB91C1C);
+      default:
+        return const Color(0xFFB45309);
+    }
   }
 
   Widget _technicianCard(Map<String, dynamic> tech) {
@@ -1107,6 +1401,7 @@ class _HomePageState extends State<HomePage> {
     _locationSub?.cancel();
     _searchCtrl.dispose();
     _descriptionCtrl.dispose();
+    _paymentPhoneCtrl.dispose();
     super.dispose();
   }
 
