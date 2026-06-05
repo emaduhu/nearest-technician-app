@@ -56,18 +56,23 @@
         .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
         .item strong { display: block; }
         .item span { display: block; color: var(--muted); margin-top: 4px; font-size: 13px; }
-        .review-scroll { max-height: 720px; overflow: auto; margin-top: 12px; padding-right: 4px; }
-        .review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px; margin-top: 12px; }
+        .review-scroll { max-height: 380px; overflow-x: auto; overflow-y: hidden; margin-top: 12px; padding: 0 4px 8px 0; }
+        .review-grid { display: flex; gap: 12px; min-width: max-content; margin-top: 12px; }
         .review-scroll .review-grid { margin-top: 0; }
-        .review-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; }
-        .review-images { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin: 10px 0; }
-        .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 4 / 3; display: grid; place-items: center; }
+        .review-card { flex: 0 0 340px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; }
+        .review-card .item { padding: 10px; }
+        .review-card .item span { font-size: 12px; line-height: 1.25; }
+        .review-images { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+        .review-images label { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+        .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 16 / 9; max-height: 104px; display: grid; place-items: center; }
         .review-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .review-actions { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; gap: 8px; align-items: center; }
+        .review-actions { display: grid; grid-template-columns: minmax(130px, 1fr) auto auto; gap: 6px; align-items: center; }
+        .review-actions input { padding: 8px; font-size: 12px; }
+        .review-actions .button { padding: 8px 9px; }
         .request-block-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: center; min-width: 260px; }
         .helper { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-        @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid, .review-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images, .request-block-form { grid-template-columns: 1fr; } .table-scroll table { min-width: 0; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
+        @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: 1fr; } }
+        @media (max-width: 620px) { .metrics, .split, .review-actions, .request-block-form { grid-template-columns: 1fr; } .review-card { flex-basis: 320px; } .table-scroll table { min-width: 0; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
     </style>
 </head>
 <body>
