@@ -1195,6 +1195,10 @@ class TechnicianApiController extends Controller
             $query->where('client_id', $data['clientId']);
         }
         if (isset($data['technicianId'])) {
+            $technician = Technician::find($data['technicianId']);
+            if (! $technician || ! $this->technicianRegistrationApproved($technician)) {
+                return response()->json([]);
+            }
             $query->where('technician_id', $data['technicianId']);
         }
         if (isset($data['status'])) {

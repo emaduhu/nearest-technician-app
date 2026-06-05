@@ -70,12 +70,41 @@ class AppLocalizations {
       : 'After registration, an admin will review your details before you proceed.';
   String get registrationReviewTitle =>
       isSwahili ? 'Usajili unasubiri uhakiki' : 'Registration under review';
+  String get registrationReviewRejectedTitle =>
+      isSwahili ? 'Usajili umekataliwa' : 'Registration rejected';
+  String registrationReviewStatus(String status) => isSwahili
+      ? 'Hali: ${registrationReviewStatusLabel(status)}'
+      : 'Status: ${registrationReviewStatusLabel(status)}';
+  String registrationReviewStatusLabel(String status) {
+    switch (status) {
+      case 'approved':
+        return isSwahili ? 'umeidhinishwa' : 'approved';
+      case 'rejected':
+        return isSwahili ? 'umekataliwa' : 'rejected';
+      default:
+        return isSwahili ? 'unasubiri' : 'pending';
+    }
+  }
+
   String get registrationReviewPending => isSwahili
       ? 'Msimamizi anakagua NIDA na picha yako. Utaendelea baada ya kuidhinishwa.'
       : 'An admin is reviewing your NIDA ID and face photo. You can proceed after approval.';
   String get registrationReviewRejected => isSwahili
       ? 'Usajili wako umekataliwa. Wasiliana na msaada au sajili tena kwa taarifa sahihi.'
       : 'Your registration was rejected. Contact support or register again with correct details.';
+  String get registrationReviewReason =>
+      isSwahili ? 'Sababu ya kukataliwa' : 'Rejection reason';
+  String get registrationReviewNoReason => isSwahili
+      ? 'Hakuna sababu iliyoandikwa. Wasiliana na msaada kwa maelezo.'
+      : 'No reason was provided. Contact support for details.';
+  String get registrationReviewRectifyTitle =>
+      isSwahili ? 'Jinsi ya kurekebisha' : 'How to rectify';
+  String get registrationReviewRectify => isSwahili
+      ? 'Rekebisha taarifa au picha zilizoelezwa kwenye sababu, kisha sajili tena au wasiliana na msaada ili kufanyiwa uhakiki upya.'
+      : 'Correct the details or photos mentioned in the reason, then register again or contact support so an admin can review you again.';
+  String get registrationReviewNoRequests => isSwahili
+      ? 'Hutaonyeshwa maombi ya wateja hadi usajili utakapoidhinishwa.'
+      : 'Client requests will not be shown until your registration is approved.';
   String get registrationReviewApproved =>
       isSwahili ? 'Usajili umeidhinishwa' : 'Registration approved';
   String get phone => isSwahili ? 'Simu' : 'Phone';

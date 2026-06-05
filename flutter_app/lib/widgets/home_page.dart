@@ -86,7 +86,9 @@ class _HomePageState extends State<HomePage> {
         _localTanzaniaPhone(_technician?['phone'] ?? _user['phone'] ?? '');
     _available = _technician?['available'] == true;
     _initializeForegroundUpdates();
-    _loadHistory();
+    if (!_isTechnician || _technicianApproved) {
+      _loadHistory();
+    }
     _startLiveLocation();
     _trackingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!_isTechnician && _hasAcceptedRequest) {
@@ -109,6 +111,9 @@ class _HomePageState extends State<HomePage> {
           type == 'portal_news') {
         if (type == 'registration_review') {
           _applyRegistrationReviewPush(data);
+          return;
+        }
+        if (_isBlockedTechnicianRequestPush(type)) {
           return;
         }
 
@@ -200,13 +205,24 @@ class _HomePageState extends State<HomePage> {
                   : l10n.registrationReviewPending);
     });
 
-    _loadHistory();
-    if (approved && _locationSub == null) {
-      _startLiveLocation();
+    if (approved) {
+      _loadHistory();
+      if (_locationSub == null) {
+        _startLiveLocation();
+      }
     } else if (!approved && _locationSub != null) {
+      setState(() => _history = []);
       _locationSub?.cancel();
       _locationSub = null;
+    } else if (!approved) {
+      setState(() => _history = []);
     }
+  }
+
+  bool _isBlockedTechnicianRequestPush(String type) {
+    return _isTechnician &&
+        !_technicianApproved &&
+        (type == 'tech_request' || type == 'service_request');
   }
 
   Future<void> _saveDeviceToken(String token) async {
@@ -276,6 +292,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadHistory() async {
+    if (_isTechnician && !_technicianApproved) {
+      if (mounted && _history.isNotEmpty) {
+        setState(() => _history = []);
+      }
+      return;
+    }
+
     try {
       final items = await _api.getHistory(
         clientId: _isTechnician ? null : _user['id'],
@@ -907,10 +930,14 @@ class _HomePageState extends State<HomePage> {
     final l10n = AppLocalizations.of(context);
     final status = _registrationReviewStatus;
     final rejected = status == 'rejected';
+    final pending = status == 'pending';
     final title = rejected
         ? l10n.registrationReviewRejected
         : l10n.registrationReviewPending;
     final note = _registrationReview['note']?.toString() ?? '';
+    final reviewTitle = rejected
+        ? l10n.registrationReviewRejectedTitle
+        : l10n.registrationReviewTitle;
 
     return Card(
       child: Padding(
@@ -942,7 +969,7 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l10n.registrationReviewTitle,
+                    reviewTitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
@@ -951,14 +978,55 @@ class _HomePageState extends State<HomePage> {
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      avatar: Icon(
+                        rejected
+                            ? Icons.cancel_outlined
+                            : Icons.hourglass_top_outlined,
+                        size: 18,
+                      ),
+                      label: Text(l10n.registrationReviewStatus(status)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     title,
                     style: const TextStyle(color: Color(0xFF51616B)),
                   ),
-                  if (note.isNotEmpty) ...[
+                  if (rejected) ...[
                     const SizedBox(height: 8),
-                    Text(note,
-                        style: const TextStyle(color: Color(0xFF697781))),
+                    _ReviewGuidanceBlock(
+                      icon: Icons.feedback_outlined,
+                      title: l10n.registrationReviewReason,
+                      body: note.isNotEmpty
+                          ? note
+                          : l10n.registrationReviewNoReason,
+                      tone: _ReviewGuidanceTone.danger,
+                    ),
+                    const SizedBox(height: 8),
+                    _ReviewGuidanceBlock(
+                      icon: Icons.build_circle_outlined,
+                      title: l10n.registrationReviewRectifyTitle,
+                      body: l10n.registrationReviewRectify,
+                      tone: _ReviewGuidanceTone.info,
+                    ),
+                    const SizedBox(height: 8),
+                    _ReviewGuidanceBlock(
+                      icon: Icons.visibility_off_outlined,
+                      title: l10n.newRequests,
+                      body: l10n.registrationReviewNoRequests,
+                      tone: _ReviewGuidanceTone.warning,
+                    ),
+                  ] else if (pending) ...[
+                    const SizedBox(height: 8),
+                    _ReviewGuidanceBlock(
+                      icon: Icons.visibility_off_outlined,
+                      title: l10n.newRequests,
+                      body: l10n.registrationReviewNoRequests,
+                      tone: _ReviewGuidanceTone.warning,
+                    ),
                   ],
                 ],
               ),
@@ -1604,6 +1672,78 @@ class _HomePageState extends State<HomePage> {
           constraints: const BoxConstraints(maxWidth: 860),
           child: _isTechnician ? _technicianDashboard() : _clientDashboard(),
         ),
+      ),
+    );
+  }
+}
+
+enum _ReviewGuidanceTone { danger, warning, info }
+
+class _ReviewGuidanceBlock extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+  final _ReviewGuidanceTone tone;
+
+  const _ReviewGuidanceBlock({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.tone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = switch (tone) {
+      _ReviewGuidanceTone.danger => (
+          background: const Color(0xFFFDECEC),
+          foreground: const Color(0xFFA62626),
+          border: const Color(0xFFF3B9B9),
+        ),
+      _ReviewGuidanceTone.warning => (
+          background: const Color(0xFFFFF7ED),
+          foreground: const Color(0xFFB45309),
+          border: const Color(0xFFFCD34D),
+        ),
+      _ReviewGuidanceTone.info => (
+          background: const Color(0xFFEEF5F3),
+          foreground: const Color(0xFF0F766E),
+          border: const Color(0xFFDCE4E8),
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: colors.foreground, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.foreground,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  body,
+                  style: const TextStyle(color: Color(0xFF30414A)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
