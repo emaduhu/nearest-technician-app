@@ -151,8 +151,8 @@ class AppLocalizations {
   String get sendingPhoneCode =>
       isSwahili ? 'Inatuma msimbo wa simu...' : 'Sending phone code...';
   String get phoneCodeSent => isSwahili
-      ? 'Msimbo umetumwa kwa simu yako'
-      : 'A code has been sent to your phone';
+      ? 'Msimbo umetumwa kwa SMS kwenye simu yako'
+      : 'A code has been sent by SMS to your phone';
   String get smsAutoReadHint => isSwahili
       ? 'Tukipata SMS kiotomatiki, msimbo utajazwa bila kubonyeza kitu.'
       : 'If Android reads the SMS automatically, the code fills itself.';
@@ -168,8 +168,8 @@ class AppLocalizations {
       ? 'Uthibitishaji wa simu umeshindikana'
       : 'Phone verification failed';
   String get phoneVerificationTemporarilyBlocked => isSwahili
-      ? 'Firebase imezuia kwa muda maombi ya SMS kutoka kwenye kifaa au namba hii. Subiri kabla ya kujaribu tena, au tumia namba ya majaribio ya Firebase wakati wa testing.'
-      : 'Firebase has temporarily blocked SMS requests from this device or phone number. Wait before trying again, or use a Firebase test phone number during testing.';
+      ? 'Firebase imezuia kwa muda maombi ya SMS kutoka kwenye kifaa au namba hii. Subiri kabla ya kujaribu tena, au jaribu namba halisi nyingine ambayo haijawekwa kama namba ya majaribio.'
+      : 'Firebase has temporarily blocked SMS requests from this device or phone number. Wait before trying again, or try another real phone number that is not configured as a test number.';
   String get phoneVerificationAppIdentifierError => isSwahili
       ? 'Firebase haijatambua app hii kwa uthibitishaji wa simu. Hakikisha SHA-1/SHA-256 na google-services.json vimesanidiwa upya.'
       : 'Firebase could not identify this app for phone verification. Confirm SHA-1/SHA-256 and refresh google-services.json.';
