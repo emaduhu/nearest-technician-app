@@ -1508,11 +1508,7 @@ class _HomePageState extends State<HomePage> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          tooltip: l10n.back,
-          onPressed: widget.onLogout,
-          icon: const Icon(Icons.arrow_back),
-        ),
+        automaticallyImplyLeading: false,
         title: Text(_isTechnician
             ? l10n.technicianDashboardTitle
             : l10n.findTechnicianTitle),

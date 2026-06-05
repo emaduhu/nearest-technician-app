@@ -7,6 +7,7 @@
     <style>
         :root { color-scheme: light; --bg: #f5f7f8; --panel: #fff; --line: #dce4e8; --ink: #17202a; --muted: #63727d; --brand: #0f766e; --blue: #2563eb; --danger: #a62626; --warn: #9a6700; }
         * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
         body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--ink); }
         .shell { max-width: 1180px; margin: 0 auto; padding: 28px 20px 44px; }
         header { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 22px; }
@@ -25,6 +26,9 @@
         .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
         .panel { padding: 18px; margin-bottom: 14px; }
         .status { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #eef5f3; color: var(--brand); }
+        .status.error { background: #fdecec; color: var(--danger); }
+        #dispatch-live { transition: opacity .18s ease; }
+        #dispatch-live.is-refreshing { opacity: .82; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; vertical-align: middle; }
         th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
@@ -73,17 +77,14 @@
                 @csrf
                 <button type="submit">Logout</button>
             </form>
-            <span class="badge">Updated {{ now()->format('M j, Y H:i') }}</span>
+            <span id="portal-updated-at" class="badge">Updated {{ now()->format('M j, Y H:i') }}</span>
         </nav>
     </header>
 
-    @if (session('status'))
-        <div class="status">{{ session('status') }}</div>
-    @endif
-    @if ($errors->any())
-        <div class="status" style="background:#fdecec;color:var(--danger);">{{ $errors->first() }}</div>
-    @endif
+    <div id="portal-status" class="status" @if (! session('status')) hidden @endif>{{ session('status') }}</div>
+    <div id="portal-errors" class="status error" @if (! $errors->any()) hidden @endif>{{ $errors->first() }}</div>
 
+    <div id="dispatch-live" data-refresh-url="{{ route('dispatch') }}" data-refresh-ms="5000">
     <section class="metrics">
         <article class="metric"><span>Clients</span><strong>{{ $stats['clients'] }}</strong></article>
         <article class="metric"><span>Technicians</span><strong>{{ $stats['technicians'] }}</strong></article>
@@ -312,6 +313,128 @@
             </article>
         </aside>
     </section>
+    </div>
 </main>
+<script>
+(() => {
+    const live = document.getElementById('dispatch-live');
+    if (!live) return;
+
+    const refreshUrl = live.dataset.refreshUrl || window.location.href;
+    const refreshMs = Math.max(Number.parseInt(live.dataset.refreshMs || '5000', 10), 3000);
+    const updatedAt = document.getElementById('portal-updated-at');
+    const statusBox = document.getElementById('portal-status');
+    const errorBox = document.getElementById('portal-errors');
+    let inFlight = false;
+
+    const interactiveTags = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON']);
+    const hasActiveField = () => {
+        const active = document.activeElement;
+        return active && live.contains(active) && interactiveTags.has(active.tagName);
+    };
+
+    const showMessage = (message, error = false) => {
+        const target = error ? errorBox : statusBox;
+        const other = error ? statusBox : errorBox;
+        if (!target) return;
+        target.textContent = message || '';
+        target.hidden = !message;
+        if (other && message) {
+            other.textContent = '';
+            other.hidden = true;
+        }
+    };
+
+    const syncBox = (doc, id) => {
+        const source = doc.getElementById(id);
+        const target = document.getElementById(id);
+        if (!source || !target) return;
+        target.textContent = source.textContent.trim();
+        target.hidden = source.hidden || target.textContent.length === 0;
+    };
+
+    const syncFromDocument = (doc, force = false) => {
+        const nextLive = doc.getElementById('dispatch-live');
+        const nextUpdatedAt = doc.getElementById('portal-updated-at');
+        if (nextLive && (force || !hasActiveField())) {
+            live.innerHTML = nextLive.innerHTML;
+        }
+        if (nextUpdatedAt && updatedAt) {
+            updatedAt.textContent = nextUpdatedAt.textContent;
+        }
+        syncBox(doc, 'portal-status');
+        syncBox(doc, 'portal-errors');
+    };
+
+    const fetchPage = async (url, options = {}) => {
+        const response = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'Accept': 'text/html',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(options.headers || {}),
+            },
+            ...options,
+        });
+        const html = await response.text();
+        if (!response.ok) {
+            throw new Error(html || 'The portal could not be updated.');
+        }
+        return new DOMParser().parseFromString(html, 'text/html');
+    };
+
+    const refreshLive = async (force = false) => {
+        if (inFlight || (!force && (document.hidden || hasActiveField()))) {
+            return;
+        }
+
+        inFlight = true;
+        live.classList.add('is-refreshing');
+        try {
+            const doc = await fetchPage(refreshUrl);
+            syncFromDocument(doc, force);
+        } catch (error) {
+            console.warn('Portal live refresh failed', error);
+        } finally {
+            inFlight = false;
+            live.classList.remove('is-refreshing');
+        }
+    };
+
+    live.addEventListener('submit', async (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+
+        event.preventDefault();
+        const submitter = event.submitter;
+        const body = new FormData(form);
+        if (submitter && submitter.name && !body.has(submitter.name)) {
+            body.append(submitter.name, submitter.value);
+        }
+
+        inFlight = true;
+        live.classList.add('is-refreshing');
+        showMessage('Updating...');
+        try {
+            const doc = await fetchPage(form.action, {
+                method: form.method || 'POST',
+                body,
+            });
+            syncFromDocument(doc, true);
+        } catch (error) {
+            showMessage(error.message || 'The portal could not be updated.', true);
+        } finally {
+            inFlight = false;
+            live.classList.remove('is-refreshing');
+        }
+    });
+
+    window.setInterval(() => refreshLive(false), refreshMs);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshLive(false);
+    });
+})();
+</script>
 </body>
 </html>
