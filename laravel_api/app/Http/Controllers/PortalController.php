@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TechnicianRegistrationReviewMail;
 use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -159,28 +162,36 @@ class PortalController extends Controller
         return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
     }
 
-    public function reviewTechnicianRegistration(Request $request, Technician $technician): RedirectResponse
+    public function reviewTechnicianRegistration(Request $request, Technician $technician, PushNotificationService $push): RedirectResponse
     {
         $this->ensureAdmin();
 
         $data = $request->validate([
             'decision' => ['required', Rule::in(['approved', 'rejected'])],
-            'note' => ['nullable', 'string', 'max:500'],
+            'note' => [Rule::requiredIf($request->input('decision') === 'rejected'), 'nullable', 'string', 'max:500'],
         ]);
 
         $approved = $data['decision'] === 'approved';
+        $note = trim((string) ($data['note'] ?? ''));
         $technician->update([
             'registration_review_status' => $data['decision'],
-            'registration_review_note' => $data['note'] ?? null,
+            'registration_review_note' => $note !== '' ? $note : null,
             'registration_reviewed_at' => now(),
             'registration_reviewed_by' => $request->user()->id,
             'available' => $approved,
             'last_seen_at' => $approved ? now() : $technician->last_seen_at,
         ]);
 
+        $delivery = $this->notifyTechnicianRegistrationReview($push, $technician->fresh('user'), $data['decision'], $note);
+        $deliveryText = sprintf(
+            ' Push: %s. Email: %s.',
+            $delivery['push'] ? 'sent' : 'not sent',
+            $delivery['email'] ? 'sent' : 'not sent'
+        );
+
         return redirect()->route('dispatch')->with(
             'status',
-            $approved ? 'Technician registration approved.' : 'Technician registration rejected.'
+            ($approved ? 'Technician registration approved.' : 'Technician registration rejected.').$deliveryText
         );
     }
 
@@ -467,6 +478,53 @@ class PortalController extends Controller
         }
 
         return $push->send($user->device_token, $notification, $data);
+    }
+
+    /**
+     * @return array{push: bool, email: bool}
+     */
+    private function notifyTechnicianRegistrationReview(PushNotificationService $push, Technician $technician, string $decision, string $note): array
+    {
+        $approved = $decision === 'approved';
+        $user = $technician->user ?: User::where('email', $technician->email)->first();
+        $title = $approved ? 'Registration approved' : 'Registration rejected';
+        $body = $approved
+            ? 'Your technician registration was approved. Open the app to continue.'
+            : 'Your technician registration was rejected. Reason: '.$note;
+
+        $token = $user?->device_token ?: $technician->device_token;
+        $pushSent = false;
+        if (filled($token)) {
+            $pushSent = $push->send($token, [
+                'title' => $title,
+                'body' => $body,
+            ], [
+                'type' => 'registration_review',
+                'status' => $decision,
+                'technicianId' => (string) $technician->id,
+            ]);
+        }
+
+        $emailSent = false;
+        $email = $user?->email ?: $technician->email;
+        if (filled($email)) {
+            try {
+                Mail::to($email)->send(new TechnicianRegistrationReviewMail(
+                    name: $technician->name,
+                    decision: $decision,
+                    note: $note,
+                ));
+                $emailSent = true;
+            } catch (\Throwable $exception) {
+                Log::warning('Technician registration review email could not be sent.', [
+                    'technician_id' => $technician->id,
+                    'email' => $email,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return ['push' => $pushSent, 'email' => $emailSent];
     }
 
     private function landingRouteFor(?User $user): string

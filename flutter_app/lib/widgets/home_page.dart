@@ -761,10 +761,6 @@ class _HomePageState extends State<HomePage> {
             title: l10n.technicianDashboard,
             subtitle: l10n.technicianDashboardSubtitle,
             icon: Icons.engineering,
-            trailing: _MetricPill(
-              icon: Icons.fact_check_outlined,
-              label: l10n.registrationReviewTitle,
-            ),
           ),
           const SizedBox(height: 12),
           _registrationReviewCard(),
@@ -872,13 +868,18 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text(
                     l10n.registrationReviewTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
-                  Text(title, style: const TextStyle(color: Color(0xFF51616B))),
+                  Text(
+                    title,
+                    style: const TextStyle(color: Color(0xFF51616B)),
+                  ),
                   if (note.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(note,

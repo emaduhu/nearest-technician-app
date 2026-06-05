@@ -171,8 +171,8 @@ class AppLocalizations {
       ? 'Firebase imezuia kwa muda maombi ya SMS kutoka kwenye kifaa au namba hii. Subiri kabla ya kujaribu tena, au jaribu namba halisi nyingine ambayo haijawekwa kama namba ya majaribio.'
       : 'Firebase has temporarily blocked SMS requests from this device or phone number. Wait before trying again, or try another real phone number that is not configured as a test number.';
   String get phoneVerificationAppIdentifierError => isSwahili
-      ? 'Firebase haijatambua app hii kwa uthibitishaji wa simu. Hakikisha SHA-1/SHA-256 na google-services.json vimesanidiwa upya.'
-      : 'Firebase could not identify this app for phone verification. Confirm SHA-1/SHA-256 and refresh google-services.json.';
+      ? 'Firebase imeshindwa kuthibitisha app hii kwa SMS. Hakikisha SHA-1 na SHA-256 za release APK zipo Firebase, API key inaruhusu nearest-technician.firebaseapp.com kwa reCAPTCHA, kisha pakua google-services.json mpya.'
+      : 'Firebase could not verify this app for SMS. Add the release APK SHA-1 and SHA-256 in Firebase, allow nearest-technician.firebaseapp.com on the API key for reCAPTCHA, then download a fresh google-services.json.';
   String phoneCodeRetryIn(int seconds) {
     final safeSeconds = seconds < 0 ? 0 : seconds;
     final minutes = safeSeconds ~/ 60;

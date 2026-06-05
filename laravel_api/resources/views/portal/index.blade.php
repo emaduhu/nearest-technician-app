@@ -110,6 +110,10 @@
                             <span>Phone: {{ $technician->phone ?: '-' }}</span>
                             <span>NIDA: {{ $technician->nida ?: '-' }}</span>
                             <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
+                            <span>Payment: {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not_requested') }} · {{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                            @if ($technician->registration_payment_requested_at)
+                                <span>Payment requested: {{ $technician->registration_payment_requested_at->diffForHumans() }}</span>
+                            @endif
                         </div>
                         <div class="review-images">
                             <div>
@@ -136,7 +140,7 @@
                         <form class="review-actions" method="post" action="{{ route('technicians.registration-review', $technician) }}">
                             @csrf
                             @method('patch')
-                            <input name="note" placeholder="Review note">
+                            <input name="note" placeholder="Review note; required when rejecting">
                             <button class="button primary" name="decision" value="approved" type="submit">Approve</button>
                             <button class="button" name="decision" value="rejected" type="submit">Reject</button>
                         </form>
@@ -176,13 +180,19 @@
                     <span class="badge">{{ $stats['technicians'] }} members</span>
                 </div>
                 <table>
-                    <thead><tr><th>Technician</th><th>Skills</th><th>Contact</th><th>Last seen</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Technician</th><th>Skills</th><th>Contact</th><th>Payment</th><th>Last seen</th><th>Status</th></tr></thead>
                     <tbody>
                     @forelse ($technicians as $technician)
                         <tr>
                             <td>{{ $technician->name }}</td>
                             <td>{{ implode(', ', $technician->skills ?? []) ?: 'No skills listed' }}</td>
                             <td>{{ $technician->phone ?: $technician->email }}</td>
+                            <td>
+                                <span class="badge {{ in_array($technician->registration_payment_status, ['success', 'settled'], true) ? '' : 'pending' }}">
+                                    {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not requested') }}
+                                </span>
+                                <span>{{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                            </td>
                             <td>{{ $technician->last_seen_at?->diffForHumans() ?? 'Not seen yet' }}</td>
                             <td>
                                 <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
@@ -191,7 +201,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5">No technicians registered.</td></tr>
+	                        <tr><td colspan="6">No technicians registered.</td></tr>
                     @endforelse
                     </tbody>
                 </table>

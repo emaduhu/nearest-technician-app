@@ -576,10 +576,14 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   bool _isPhoneAuthAppIdentifierError(FirebaseAuthException error) {
+    final code = error.code.toLowerCase();
     final message = (error.message ?? '').toLowerCase();
-    return message.contains('valid app identifier') ||
+    return code == 'internal-error' && message.contains('error code:39') ||
+        message.contains('valid app identifier') ||
         message.contains('play integrity') ||
-        message.contains('recaptcha');
+        message.contains('recaptcha') ||
+        message.contains('not a robot') ||
+        message.contains('captcha');
   }
 
   void _startPhoneCooldown(Duration duration) {
