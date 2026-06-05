@@ -130,6 +130,7 @@ class _MyAppState extends State<MyApp> {
               onLocaleChanged: _setLocale,
               onRegistered: (session) => setState(() => _session = session))
           : HomePage(
+              initialNotification: widget.initialNotification,
               locale: _locale,
               onLocaleChanged: _setLocale,
               session: _session!,

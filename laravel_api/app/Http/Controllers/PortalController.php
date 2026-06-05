@@ -6,6 +6,7 @@ use App\Mail\TechnicianRegistrationReviewMail;
 use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
+use App\Services\AppSettingsService;
 use App\Services\PasswordResetService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
@@ -82,14 +83,16 @@ class PortalController extends Controller
         return redirect()->route('login');
     }
 
-    public function dispatch(): View
+    public function dispatch(AppSettingsService $settings): View
     {
         $this->ensurePortalAccess();
 
         $totalTechnicians = Technician::count();
         $availableTechnicians = Technician::where('available', true)->count();
+        $registrationFee = $settings->technicianRegistrationFee();
 
         return view('portal.index', [
+            'registrationFee' => $registrationFee,
             'stats' => [
                 'clients' => User::where('role', 'client')->count(),
                 'technicians' => $totalTechnicians,
@@ -109,7 +112,7 @@ class PortalController extends Controller
                 ->limit(100)
                 ->get(),
             'pendingTechnicianReviews' => Technician::with('user')
-                ->whereIn('registration_review_status', ['pending', 'rejected'])
+                ->where('registration_review_status', 'pending')
                 ->latest()
                 ->limit(100)
                 ->get(),
@@ -146,6 +149,29 @@ class PortalController extends Controller
         ]);
     }
 
+    public function updateRegistrationFee(Request $request, AppSettingsService $settings): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:'.AppSettingsService::MIN_TECHNICIAN_REGISTRATION_FEE],
+        ]);
+
+        $amount = $settings->setTechnicianRegistrationFee((int) $data['amount']);
+        Technician::whereIn('registration_payment_status', [
+            'not_requested',
+            'not_configured',
+            'request_failed',
+            'failed',
+            'unsupported_payment_operator',
+        ])->update([
+            'registration_fee_amount' => $amount,
+            'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+        ]);
+
+        return redirect()->route('dispatch')->with('status', 'Registration fee updated.');
+    }
+
     public function updateTechnicianAvailability(Request $request, Technician $technician): RedirectResponse
     {
         $this->ensurePortalAccess();
@@ -154,12 +180,40 @@ class PortalController extends Controller
             'available' => ['required', 'boolean'],
         ]);
 
+        if ((bool) $data['available'] && $technician->client_requests_blocked) {
+            return redirect()->route('dispatch')->withErrors(['availability' => 'Unblock client requests before setting this technician available.']);
+        }
+
         $technician->update([
             'available' => (bool) $data['available'],
             'last_seen_at' => now(),
         ]);
 
         return redirect()->route('dispatch')->with('status', 'Technician availability updated.');
+    }
+
+    public function toggleTechnicianRequestBlock(Request $request, Technician $technician): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        $data = $request->validate([
+            'blocked' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $blocked = (bool) $data['blocked'];
+        $reason = trim((string) ($data['reason'] ?? ''));
+        $technician->update([
+            'client_requests_blocked' => $blocked,
+            'client_requests_blocked_reason' => $blocked
+                ? ($reason !== '' ? $reason : 'Client requests blocked by admin.')
+                : null,
+            'available' => $blocked ? false : $technician->available,
+        ]);
+
+        return redirect()->route('dispatch')->with('status', $blocked
+            ? 'Client requests blocked for this technician.'
+            : 'Client requests unblocked for this technician.');
     }
 
     public function reviewTechnicianRegistration(Request $request, Technician $technician, PushNotificationService $push): RedirectResponse
@@ -315,6 +369,10 @@ class PortalController extends Controller
             'available' => ['required', 'boolean'],
         ]);
 
+        if ((bool) $data['available'] && $technician->client_requests_blocked) {
+            return redirect()->route('technician.dashboard')->withErrors(['availability' => 'Admin has blocked this account from receiving client requests.']);
+        }
+
         $technician->update([
             'available' => (bool) $data['available'],
             'last_seen_at' => now(),
@@ -424,9 +482,11 @@ class PortalController extends Controller
         ]);
 
         if ($user->role === 'technician') {
-            Technician::where('user_id', $user->id)
-                ->orWhere('email', $user->email)
-                ->update(['available' => ! $blocked]);
+            $query = Technician::where('user_id', $user->id)
+                ->orWhere('email', $user->email);
+            if ($blocked) {
+                $query->update(['available' => false]);
+            }
         }
 
         return redirect()->route('users.index')->with('status', $blocked ? 'User blocked.' : 'User unblocked.');
@@ -504,7 +564,7 @@ class PortalController extends Controller
                 'note' => $note,
                 'reviewedAt' => now()->toISOString(),
                 'registrationPaymentStatus' => $technician->registration_payment_status ?? 'not_requested',
-                'registrationFeeAmount' => (string) ($technician->registration_fee_amount ?? config('services.clickpesa.technician_registration_fee', 5000)),
+                'registrationFeeAmount' => (string) ($technician->registration_fee_amount ?? app(AppSettingsService::class)->technicianRegistrationFee()),
                 'registrationFeeCurrency' => $technician->registration_fee_currency ?? config('services.clickpesa.currency', 'TZS'),
                 'technicianId' => (string) $technician->id,
             ]);
@@ -564,6 +624,8 @@ class PortalController extends Controller
             'phone' => $user->phone,
             'email' => $user->email,
             'available' => true,
+            'client_requests_blocked' => false,
+            'client_requests_blocked_reason' => null,
             'registration_review_status' => 'approved',
             'registration_reviewed_at' => now(),
             'registration_reviewed_by' => Auth::id(),

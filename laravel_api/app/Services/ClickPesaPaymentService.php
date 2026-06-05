@@ -10,6 +10,10 @@ use RuntimeException;
 
 class ClickPesaPaymentService
 {
+    public function __construct(private readonly AppSettingsService $settings)
+    {
+    }
+
     public function configured(): bool
     {
         return filled($this->clientId()) && filled($this->apiKey());
@@ -17,7 +21,7 @@ class ClickPesaPaymentService
 
     public function technicianRegistrationFee(): int
     {
-        return max((int) config('services.clickpesa.technician_registration_fee', 5000), 0);
+        return $this->settings->technicianRegistrationFee();
     }
 
     public function initiateTechnicianRegistrationPayment(string $phoneNumber, string $orderReference): array

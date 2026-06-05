@@ -174,28 +174,41 @@ class TechnicianApiController extends Controller
         $payload = ['ok' => true, 'user' => $this->userDto($user)];
         $technician = null;
         if ($data['role'] === 'technician') {
+            $technicianAttributes = [
+                'user_id' => $user->id,
+                'name' => $data['name'],
+                'nida' => $nida,
+                'phone' => $phone,
+                'password' => $data['password'],
+                'device_token' => $deviceToken,
+                'skills' => $this->normalizeSkills($data['skills'] ?? []),
+                'image' => $data['image'] ?? null,
+                'nida_id_image' => $nidaIdImage,
+                'face_image' => $faceImage,
+                'registration_review_status' => 'pending',
+                'registration_review_note' => null,
+                'registration_reviewed_at' => null,
+                'registration_reviewed_by' => null,
+                'registration_fee_amount' => $this->payments->technicianRegistrationFee(),
+                'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+                'registration_payment_status' => 'not_requested',
+                'registration_payment_order_reference' => null,
+                'registration_payment_id' => null,
+                'registration_payment_response' => null,
+                'registration_payment_requested_at' => null,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'available' => false,
+                'last_seen_at' => now(),
+            ];
+            if (Schema::hasColumn('technicians', 'client_requests_blocked')) {
+                $technicianAttributes['client_requests_blocked'] = false;
+                $technicianAttributes['client_requests_blocked_reason'] = null;
+            }
+
             $technician = Technician::updateOrCreate(
                 ['email' => $email],
-                [
-                    'user_id' => $user->id,
-                    'name' => $data['name'],
-                    'nida' => $nida,
-                    'phone' => $phone,
-                    'password' => $data['password'],
-                    'device_token' => $deviceToken,
-                    'skills' => $this->normalizeSkills($data['skills'] ?? []),
-                    'image' => $data['image'] ?? null,
-                    'nida_id_image' => $nidaIdImage,
-                    'face_image' => $faceImage,
-                    'registration_review_status' => 'pending',
-                    'registration_review_note' => null,
-                    'registration_reviewed_at' => null,
-                    'registration_reviewed_by' => null,
-                    'latitude' => $latitude,
-                    'longitude' => $longitude,
-                    'available' => false,
-                    'last_seen_at' => now(),
-                ],
+                $technicianAttributes,
             );
 
             $payload['technician'] = $this->technicianDto($technician->fresh());
@@ -276,11 +289,6 @@ class TechnicianApiController extends Controller
                 'code' => 'admin_review_pending',
                 'registrationReview' => $this->registrationReviewDto($technician),
             ], 403);
-        }
-
-        if ($this->registrationPaymentCanBeRequested($technician->registration_payment_status)) {
-            $this->requestTechnicianRegistrationPayment($technician);
-            $technician = $technician->fresh();
         }
 
         if (blank($technician->registration_payment_order_reference)) {
@@ -646,6 +654,9 @@ class TechnicianApiController extends Controller
         if (Schema::hasColumn('technicians', 'registration_review_status')) {
             $query->where('registration_review_status', 'approved');
         }
+        if (Schema::hasColumn('technicians', 'client_requests_blocked')) {
+            $query->where('client_requests_blocked', false);
+        }
         $query->where(function ($query): void {
             $query->whereDoesntHave('user')
                 ->orWhereHas('user', fn ($userQuery) => $userQuery->where('blocked', false));
@@ -786,10 +797,15 @@ class TechnicianApiController extends Controller
             'deviceToken' => ['nullable', 'string'],
         ]);
 
+        $available = array_key_exists('available', $data) ? (bool) $data['available'] : $technician->available;
+        if ($this->technicianClientRequestsBlocked($technician)) {
+            $available = false;
+        }
+
         $technician->update([
             'latitude' => (float) $data['lat'],
             'longitude' => (float) $data['lon'],
-            'available' => array_key_exists('available', $data) ? (bool) $data['available'] : $technician->available,
+            'available' => $available,
             'device_token' => $data['token'] ?? $data['deviceToken'] ?? $technician->device_token,
             'last_seen_at' => now(),
         ]);
@@ -819,6 +835,14 @@ class TechnicianApiController extends Controller
         }
 
         $data = $request->validate(['available' => ['required', 'boolean']]);
+        if ((bool) $data['available'] && $this->technicianClientRequestsBlocked($technician)) {
+            return response()->json([
+                'error' => 'Admin has blocked this technician from receiving client requests.',
+                'code' => 'technician_requests_blocked',
+                'technician' => $this->technicianDto($technician),
+            ], 403);
+        }
+
         $technician->update(['available' => (bool) $data['available'], 'last_seen_at' => now()]);
         $this->audit($request, 'technician.availability_updated', [
             'actor_role' => 'technician',
@@ -866,6 +890,12 @@ class TechnicianApiController extends Controller
             return response()->json([
                 'error' => 'Selected technician is not available.',
                 'code' => 'admin_review_pending',
+            ], 422);
+        }
+        if ($this->technicianClientRequestsBlocked($technician)) {
+            return response()->json([
+                'error' => 'Selected technician is not available for client requests.',
+                'code' => 'technician_requests_blocked',
             ], 422);
         }
 
@@ -1223,7 +1253,15 @@ class TechnicianApiController extends Controller
 
     private function nearestTechnician(string $skill, float $lat, float $lon): ?Technician
     {
-        return Technician::where('available', true)
+        $query = Technician::where('available', true);
+        if (Schema::hasColumn('technicians', 'registration_review_status')) {
+            $query->where('registration_review_status', 'approved');
+        }
+        if (Schema::hasColumn('technicians', 'client_requests_blocked')) {
+            $query->where('client_requests_blocked', false);
+        }
+
+        return $query
             ->get()
             ->filter(fn (Technician $technician) => $this->skillMatches($technician, $skill))
             ->sortBy(fn (Technician $technician) => $this->distanceKm($lat, $lon, $technician->latitude, $technician->longitude) ?? PHP_FLOAT_MAX)
@@ -1280,6 +1318,7 @@ class TechnicianApiController extends Controller
             'role' => $user->role,
             'name' => $user->name,
             'nida' => $user->nida ?? '',
+            'nidaFormatted' => $this->formatNida($user->nida ?? ''),
             'email' => $user->email,
             'phone' => $user->phone ?? '',
             'emailVerified' => (bool) $user->email_verified_at,
@@ -1296,11 +1335,14 @@ class TechnicianApiController extends Controller
             'userId' => $technician->user_id ? (string) $technician->user_id : '',
             'name' => $technician->name,
             'nida' => $technician->nida ?? '',
+            'nidaFormatted' => $this->formatNida($technician->nida ?? ''),
             'phone' => $technician->phone ?? '',
             'email' => $technician->email,
             'image' => $technician->image ?? '',
             'skills' => $technician->skills ?? [],
             'available' => (bool) $technician->available,
+            'clientRequestsBlocked' => $this->technicianClientRequestsBlocked($technician),
+            'clientRequestsBlockedReason' => $technician->client_requests_blocked_reason ?? '',
             'rating' => (float) $technician->rating,
             'location' => ['latitude' => $technician->latitude, 'longitude' => $technician->longitude],
             'distance' => $distance === null ? null : round($distance, 2),
@@ -1328,6 +1370,15 @@ class TechnicianApiController extends Controller
         }
 
         return ($technician->registration_review_status ?? 'approved') === 'approved';
+    }
+
+    private function technicianClientRequestsBlocked(Technician $technician): bool
+    {
+        if (! Schema::hasColumn('technicians', 'client_requests_blocked')) {
+            return false;
+        }
+
+        return (bool) $technician->client_requests_blocked;
     }
 
     private function requestTechnicianRegistrationPayment(Technician $technician): void
@@ -1594,6 +1645,19 @@ class TechnicianApiController extends Controller
         }
 
         return str_repeat('*', max(strlen($digits) - 4, 0)).substr($digits, -4);
+    }
+
+    private function formatNida(?string $nida): string
+    {
+        $digits = $this->normalizeNida((string) $nida);
+        if (strlen($digits) !== 20) {
+            return $digits;
+        }
+
+        return substr($digits, 0, 8).'-'
+            .substr($digits, 8, 5).'-'
+            .substr($digits, 13, 5).'-'
+            .substr($digits, 18, 2);
     }
 
     private function registrationFeeSupportedOperators(): array

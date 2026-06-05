@@ -10,12 +10,14 @@ import '../services/api_service.dart';
 
 class HomePage extends StatefulWidget {
   final Map<String, dynamic> session;
+  final Map<String, dynamic>? initialNotification;
   final VoidCallback onLogout;
   final Locale locale;
   final ValueChanged<Locale> onLocaleChanged;
 
   const HomePage({
     required this.session,
+    this.initialNotification,
     required this.onLogout,
     required this.locale,
     required this.onLocaleChanged,
@@ -49,6 +51,8 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _registrationPayment;
   List<dynamic> _results = [];
   List<dynamic> _history = [];
+  final List<_AppNotification> _notifications = [];
+  int _unreadNotifications = 0;
 
   static const List<String> _paymentOperators = ['Yas', 'Airtel', 'Halopesa'];
 
@@ -69,6 +73,14 @@ class _HomePageState extends State<HomePage> {
       _registrationReview['status']?.toString() ?? 'approved';
   bool get _technicianApproved =>
       !_isTechnician || _registrationReviewStatus == 'approved';
+  bool get _clientRequestsBlocked {
+    final value = _technician?['clientRequestsBlocked'];
+    return value == true || value?.toString() == 'true' || value == 1;
+  }
+
+  String get _clientRequestsBlockedReason =>
+      _technician?['clientRequestsBlockedReason']?.toString() ?? '';
+
   bool get _hasAcceptedRequest =>
       _history.any((item) => item is Map && item['status'] == 'accepted');
 
@@ -84,8 +96,16 @@ class _HomePageState extends State<HomePage> {
             : null;
     _paymentPhoneCtrl.text =
         _localTanzaniaPhone(_technician?['phone'] ?? _user['phone'] ?? '');
-    _available = _technician?['available'] == true;
+    _available =
+        _clientRequestsBlocked ? false : _technician?['available'] == true;
     _initializeForegroundUpdates();
+    if (widget.initialNotification != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _handleIncomingNotification(widget.initialNotification!);
+        }
+      });
+    }
     if (!_isTechnician || _technicianApproved) {
       _loadHistory();
     }
@@ -98,51 +118,99 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initializeForegroundUpdates() async {
-    final token = await _fcm.init((data) {
-      if (!mounted) return;
-      final type = data['type']?.toString() ?? '';
-      if (type == 'request_response' ||
-          type == 'tech_request' ||
-          type == 'service_request' ||
-          type == 'technician_response' ||
-          type == 'registration_review' ||
-          type == 'portal_test' ||
-          type == 'portal_warning' ||
-          type == 'portal_news') {
-        if (type == 'registration_review') {
-          _applyRegistrationReviewPush(data);
-          return;
-        }
-        if (_isBlockedTechnicianRequestPush(type)) {
-          return;
-        }
-
-        final l10n = AppLocalizations.of(context);
-        setState(() {
-          if (type == 'portal_test' ||
-              type == 'portal_warning' ||
-              type == 'portal_news') {
-            _status = data['body']?.toString() ?? l10n.newStatus;
-          } else if (type == 'request_response' ||
-              type == 'technician_response') {
-            final status = data['status']?.toString() ?? l10n.newStatus;
-            _status = (status == 'accepted' || status == 'rejected') &&
-                    data['body'] != null
-                ? data['body'].toString()
-                : '${l10n.requestUpdated}: ${l10n.statusLabel(status)}';
-          } else {
-            _status = data['body']?.toString() ?? l10n.newRequestReceived;
-          }
-        });
-        _loadHistory();
-      }
-    }, onTokenRefresh: _saveDeviceToken);
+    final token = await _fcm.init(_handleIncomingNotification,
+        onTokenRefresh: _saveDeviceToken);
     if (token != null && token.isNotEmpty) {
       await _saveDeviceToken(token);
     }
     _historyTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _loadHistory();
     });
+  }
+
+  void _handleIncomingNotification(Map<String, dynamic> data) {
+    if (!mounted) return;
+    final type = data['type']?.toString() ?? '';
+    if (type != 'request_response' &&
+        type != 'tech_request' &&
+        type != 'service_request' &&
+        type != 'technician_response' &&
+        type != 'registration_review' &&
+        type != 'portal_test' &&
+        type != 'portal_warning' &&
+        type != 'portal_news') {
+      return;
+    }
+
+    _recordNotification(data);
+
+    if (type == 'registration_review') {
+      _applyRegistrationReviewPush(data);
+      return;
+    }
+    if (_isBlockedTechnicianRequestPush(type)) {
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      if (type == 'portal_test' ||
+          type == 'portal_warning' ||
+          type == 'portal_news') {
+        _status = data['body']?.toString() ?? l10n.newStatus;
+      } else if (type == 'request_response' || type == 'technician_response') {
+        final status = data['status']?.toString() ?? l10n.newStatus;
+        _status = (status == 'accepted' || status == 'rejected') &&
+                data['body'] != null
+            ? data['body'].toString()
+            : '${l10n.requestUpdated}: ${l10n.statusLabel(status)}';
+      } else {
+        _status = data['body']?.toString() ?? l10n.newRequestReceived;
+      }
+    });
+    _loadHistory();
+  }
+
+  void _recordNotification(Map<String, dynamic> data) {
+    final l10n = AppLocalizations.of(context);
+    final type = data['type']?.toString() ?? '';
+    final title = data['title']?.toString().trim();
+    final body = data['body']?.toString().trim();
+    final notification = _AppNotification(
+      type: type,
+      title: title == null || title.isEmpty
+          ? _notificationFallbackTitle(type, l10n)
+          : title,
+      body: body == null || body.isEmpty ? l10n.notificationReceived : body,
+      receivedAtLabel: TimeOfDay.now().format(context),
+    );
+
+    setState(() {
+      _notifications.insert(0, notification);
+      if (_notifications.length > 100) {
+        _notifications.removeLast();
+      }
+      _unreadNotifications = math.min(_unreadNotifications + 1, 99);
+    });
+  }
+
+  String _notificationFallbackTitle(String type, AppLocalizations l10n) {
+    switch (type) {
+      case 'tech_request':
+      case 'service_request':
+        return l10n.newRequestReceived;
+      case 'request_response':
+      case 'technician_response':
+        return l10n.requestUpdated;
+      case 'registration_review':
+        return l10n.registrationReviewTitle;
+      case 'portal_warning':
+        return l10n.accountWarning;
+      case 'portal_news':
+        return l10n.news;
+      default:
+        return l10n.notifications;
+    }
   }
 
   void _applyRegistrationReviewPush(Map<String, dynamic> data) {
@@ -221,7 +289,7 @@ class _HomePageState extends State<HomePage> {
 
   bool _isBlockedTechnicianRequestPush(String type) {
     return _isTechnician &&
-        !_technicianApproved &&
+        (!_technicianApproved || _clientRequestsBlocked) &&
         (type == 'tech_request' || type == 'service_request');
   }
 
@@ -231,6 +299,168 @@ class _HomePageState extends State<HomePage> {
       await _api.updateDeviceToken(_user['id'].toString(), token);
     } catch (_) {
       // Location updates also carry the token, so this can be retried quietly.
+    }
+  }
+
+  Widget _notificationsAction(AppLocalizations l10n) {
+    final unreadLabel =
+        _unreadNotifications > 99 ? '99+' : _unreadNotifications.toString();
+
+    return IconButton(
+      tooltip: l10n.notifications,
+      onPressed: _showNotifications,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_outlined),
+          if (_unreadNotifications > 0)
+            Positioned(
+              top: -8,
+              right: -8,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFA62626),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  unreadLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showNotifications() async {
+    final l10n = AppLocalizations.of(context);
+    setState(() => _unreadNotifications = 0);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) {
+        final maxHeight = MediaQuery.sizeOf(context).height * .72;
+
+        return SizedBox(
+          height: maxHeight,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCE4E8),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.notifications_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.notifications,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.back,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_notifications.isEmpty)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        l10n.noNotifications,
+                        style: const TextStyle(color: Color(0xFF697781)),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _notifications.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final notification = _notifications[index];
+                        return ListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 6),
+                          leading: Icon(
+                            _notificationIcon(notification.type),
+                            color: const Color(0xFF0F766E),
+                          ),
+                          title: Text(
+                            notification.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text(
+                            notification.body,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text(
+                            notification.receivedAtLabel,
+                            style: const TextStyle(
+                              color: Color(0xFF697781),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _notificationIcon(String type) {
+    switch (type) {
+      case 'tech_request':
+      case 'service_request':
+        return Icons.assignment_outlined;
+      case 'request_response':
+      case 'technician_response':
+        return Icons.swap_horiz_outlined;
+      case 'registration_review':
+        return Icons.verified_user_outlined;
+      case 'portal_warning':
+        return Icons.warning_amber_outlined;
+      case 'portal_news':
+        return Icons.campaign_outlined;
+      default:
+        return Icons.notifications_outlined;
     }
   }
 
@@ -250,13 +480,21 @@ class _HomePageState extends State<HomePage> {
     _locationSub = stream.listen((pos) async {
       try {
         if (_isTechnician && _technician != null) {
-          await _api.updateTechnicianLocation(
+          final response = await _api.updateTechnicianLocation(
             _technician!['id'].toString(),
             pos.latitude,
             pos.longitude,
             _available,
             deviceToken: _deviceToken,
           );
+          final technician = response['technician'];
+          if (technician is Map) {
+            widget.session['technician'] =
+                Map<String, dynamic>.from(technician);
+            if (_clientRequestsBlocked) {
+              _available = false;
+            }
+          }
         } else {
           await _api.updateUserLocation(
             _user['id'].toString(),
@@ -632,13 +870,36 @@ class _HomePageState extends State<HomePage> {
   Future<void> _toggleAvailability(bool value) async {
     if (_technician == null) return;
     final l10n = AppLocalizations.of(context);
+    if (value && _clientRequestsBlocked) {
+      setState(() {
+        _available = false;
+        _status = _clientRequestsBlockedReason.isNotEmpty
+            ? _clientRequestsBlockedReason
+            : l10n.clientRequestsBlockedBody;
+      });
+      return;
+    }
+
     setState(() => _available = value);
     try {
-      await _api.updateAvailability(_technician!['id'], value);
-      setState(() => _status =
-          value ? l10n.availableForRequests : l10n.unavailableForRequests);
+      final response = await _api.updateAvailability(_technician!['id'], value);
+      final technician = response['technician'];
+      setState(() {
+        if (technician is Map) {
+          widget.session['technician'] = Map<String, dynamic>.from(technician);
+          _available = _clientRequestsBlocked
+              ? false
+              : widget.session['technician']['available'] == true;
+        }
+        _status =
+            value ? l10n.availableForRequests : l10n.unavailableForRequests;
+      });
     } catch (e) {
-      setState(() => _status = e.toString().replaceFirst('Exception: ', ''));
+      setState(() {
+        _available =
+            _technician?['available'] == true && !_clientRequestsBlocked;
+        _status = e.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 
@@ -714,6 +975,24 @@ class _HomePageState extends State<HomePage> {
     }
 
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _technicianNidaDisplay() {
+    final formatted = _technician?['nidaFormatted']?.toString() ?? '';
+    if (formatted.isNotEmpty) {
+      return formatted;
+    }
+
+    return _formattedNida(_technician?['nida']);
+  }
+
+  String _formattedNida(Object? value) {
+    final digits = value?.toString().replaceAll(RegExp(r'\D+'), '') ?? '';
+    if (digits.length != 20) {
+      return digits.isEmpty ? '-' : digits;
+    }
+
+    return '${digits.substring(0, 8)}-${digits.substring(8, 13)}-${digits.substring(13, 18)}-${digits.substring(18, 20)}';
   }
 
   String _normalizedTanzaniaPhone(Object? value) {
@@ -885,11 +1164,36 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.all(8),
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.fingerprint_outlined),
+                  title: Text(l10n.nida),
+                  subtitle: Text(_technicianNidaDisplay()),
+                ),
+                if (_clientRequestsBlocked) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    child: Divider(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    child: _ReviewGuidanceBlock(
+                      icon: Icons.block_outlined,
+                      title: l10n.clientRequestsBlockedTitle,
+                      body: _clientRequestsBlockedReason.isNotEmpty
+                          ? _clientRequestsBlockedReason
+                          : l10n.clientRequestsBlockedBody,
+                      tone: _ReviewGuidanceTone.warning,
+                    ),
+                  ),
+                ],
                 SwitchListTile(
                   value: _available,
-                  onChanged: _toggleAvailability,
+                  onChanged:
+                      _clientRequestsBlocked ? null : _toggleAvailability,
                   title: Text(l10n.availableForNewRequests),
-                  subtitle: Text(l10n.liveUpdatesOpen),
+                  subtitle: Text(_clientRequestsBlocked
+                      ? l10n.clientRequestsBlockedBody
+                      : l10n.liveUpdatesOpen),
                   secondary: const Icon(Icons.location_on_outlined),
                 ),
                 Padding(
@@ -989,6 +1293,13 @@ class _HomePageState extends State<HomePage> {
                       ),
                       label: Text(l10n.registrationReviewStatus(status)),
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  _ReviewGuidanceBlock(
+                    icon: Icons.fingerprint_outlined,
+                    title: l10n.nida,
+                    body: _technicianNidaDisplay(),
+                    tone: _ReviewGuidanceTone.info,
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -1106,105 +1417,108 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.paymentPushTitle,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _paymentPhoneCtrl,
-                    enabled: !paid && !_paymentLoading,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: l10n.payingNumber,
-                      hintText: '0712345678',
-                      prefixIcon: const Icon(Icons.call_outlined),
-                      helperText: l10n.payingNumberHint,
+            if (!paid) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.paymentPushTitle,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.paymentOperator,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _paymentOperators
-                        .map(
-                          (operator) => ChoiceChip(
-                            label: Text(operator),
-                            selected: _selectedPaymentOperator == operator,
-                            onSelected: paid || _paymentLoading
-                                ? null
-                                : (_) => setState(
-                                      () => _selectedPaymentOperator = operator,
-                                    ),
-                            avatar: Icon(
-                              _selectedPaymentOperator == operator
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_unchecked,
-                              size: 18,
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _paymentPhoneCtrl,
+                      enabled: !_paymentLoading,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: l10n.payingNumber,
+                        hintText: '0712345678',
+                        prefixIcon: const Icon(Icons.call_outlined),
+                        helperText: l10n.payingNumberHint,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.paymentOperator,
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _paymentOperators
+                          .map(
+                            (operator) => ChoiceChip(
+                              label: Text(operator),
+                              selected: _selectedPaymentOperator == operator,
+                              onSelected: _paymentLoading
+                                  ? null
+                                  : (_) => setState(
+                                        () =>
+                                            _selectedPaymentOperator = operator,
+                                      ),
+                              avatar: Icon(
+                                _selectedPaymentOperator == operator
+                                    ? Icons.check_circle
+                                    : Icons.radio_button_unchecked,
+                                size: 18,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
                             ),
                           ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 38),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
+                          onPressed: _paymentLoading
+                              ? null
+                              : _sendRegistrationPaymentPush,
+                          icon: const Icon(Icons.send_to_mobile_outlined),
+                          label: Text(l10n.sendUssdPush),
                         ),
-                        onPressed: paid || _paymentLoading
-                            ? null
-                            : _sendRegistrationPaymentPush,
-                        icon: const Icon(Icons.send_to_mobile_outlined),
-                        label: Text(l10n.sendUssdPush),
-                      ),
-                      TextButton.icon(
-                        onPressed: _paymentLoading
-                            ? null
-                            : _refreshRegistrationPayment,
-                        icon: const Icon(Icons.sync, size: 18),
-                        label: Text(l10n.trackPayment),
-                      ),
-                    ],
-                  ),
-                  if (_paymentLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 10),
-                      child: LinearProgressIndicator(),
+                        TextButton.icon(
+                          onPressed: _paymentLoading
+                              ? null
+                              : _refreshRegistrationPayment,
+                          icon: const Icon(Icons.sync, size: 18),
+                          label: Text(l10n.trackPayment),
+                        ),
+                      ],
                     ),
-                ],
+                    if (_paymentLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10),
+                        child: LinearProgressIndicator(),
+                      ),
+                  ],
+                ),
               ),
-            ),
+            ],
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
@@ -1656,6 +1970,7 @@ class _HomePageState extends State<HomePage> {
             ? l10n.technicianDashboardTitle
             : l10n.findTechnicianTitle),
         actions: [
+          _notificationsAction(l10n),
           _LanguageButton(
             locale: widget.locale,
             onLocaleChanged: widget.onLocaleChanged,
@@ -1675,6 +1990,20 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+class _AppNotification {
+  final String type;
+  final String title;
+  final String body;
+  final String receivedAtLabel;
+
+  const _AppNotification({
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.receivedAtLabel,
+  });
 }
 
 enum _ReviewGuidanceTone { danger, warning, info }

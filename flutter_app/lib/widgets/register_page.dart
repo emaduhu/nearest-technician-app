@@ -1037,8 +1037,6 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _VerificationNotice(
                                     message: l10n.adminReviewNotice),
                                 const SizedBox(height: 12),
-                                _RegistrationFeeNotice(l10n: l10n),
-                                const SizedBox(height: 12),
                                 TextFormField(
                                   controller: _skillsCtrl,
                                   decoration: const InputDecoration(
@@ -1506,41 +1504,6 @@ class _TinyActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
       label: labelWidget ?? Text(label ?? ''),
-    );
-  }
-}
-
-class _RegistrationFeeNotice extends StatelessWidget {
-  final AppLocalizations l10n;
-
-  const _RegistrationFeeNotice({required this.l10n});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEF5F3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFDCE4E8)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.payments_outlined, color: color.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              l10n.registrationFeeNotice,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: const Color(0xFF30414A)),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

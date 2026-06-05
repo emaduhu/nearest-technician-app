@@ -18,6 +18,7 @@
         nav form, .inline { margin: 0; }
         .eyebrow { margin: 0 0 4px; color: var(--brand); font-weight: 800; text-transform: uppercase; font-size: 12px; letter-spacing: .08em; }
         .status { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #eef5f3; color: var(--brand); }
+        .status.error { background: #fdecec; color: var(--danger); }
         .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         .metric, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
         .metric { padding: 18px; }
@@ -43,6 +44,16 @@
 </head>
 <body>
 <main class="shell">
+    @php
+        $formatNida = static function ($value): string {
+            $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
+            if (strlen($digits) !== 20) {
+                return $digits !== '' ? $digits : '-';
+            }
+
+            return substr($digits, 0, 8).'-'.substr($digits, 8, 5).'-'.substr($digits, 13, 5).'-'.substr($digits, 18, 2);
+        };
+    @endphp
     <header>
         <div>
             <p class="eyebrow">Technician portal</p>
@@ -60,9 +71,12 @@
     @if (session('status'))
         <div class="status">{{ session('status') }}</div>
     @endif
+    @if ($errors->any())
+        <div class="status error">{{ $errors->first() }}</div>
+    @endif
 
     <section class="metrics">
-        <article class="metric"><span>Status</span><strong>{{ $technician->available ? 'On' : 'Off' }}</strong></article>
+        <article class="metric"><span>Status</span><strong>{{ $technician->client_requests_blocked ? 'Blocked' : ($technician->available ? 'On' : 'Off') }}</strong></article>
         <article class="metric"><span>Pending</span><strong>{{ $stats['pending'] }}</strong></article>
         <article class="metric"><span>Accepted</span><strong>{{ $stats['accepted'] }}</strong></article>
         <article class="metric"><span>Completed</span><strong>{{ $stats['completed'] }}</strong></article>
@@ -75,25 +89,34 @@
                 <div class="profile">
                     <div>
                         <span>Current status</span>
-                        <strong>{{ $technician->available ? 'Available for dispatch' : 'Unavailable' }}</strong>
+                        <strong>{{ $technician->client_requests_blocked ? 'Client requests blocked by admin' : ($technician->available ? 'Available for dispatch' : 'Unavailable') }}</strong>
+                        @if ($technician->client_requests_blocked_reason)
+                            <span>{{ $technician->client_requests_blocked_reason }}</span>
+                        @endif
                     </div>
                     <div>
                         <span>Skills</span>
                         <strong>{{ implode(', ', $technician->skills ?? []) ?: 'No skills listed' }}</strong>
                     </div>
                     <div>
+                        <span>NIDA</span>
+                        <strong>{{ $formatNida($technician->nida) }}</strong>
+                    </div>
+                    <div>
                         <span>Last seen</span>
                         <strong>{{ $technician->last_seen_at?->diffForHumans() ?? 'Not seen yet' }}</strong>
                     </div>
                 </div>
-                <form class="actions" method="post" action="{{ route('technician.availability') }}">
-                    @csrf
-                    @method('patch')
-                    <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
-                    <button class="button {{ $technician->available ? '' : 'primary' }}" type="submit">
-                        {{ $technician->available ? 'Set unavailable' : 'Set available' }}
-                    </button>
-                </form>
+                @if (! $technician->client_requests_blocked)
+                    <form class="actions" method="post" action="{{ route('technician.availability') }}">
+                        @csrf
+                        @method('patch')
+                        <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
+                        <button class="button {{ $technician->available ? '' : 'primary' }}" type="submit">
+                            {{ $technician->available ? 'Set unavailable' : 'Set available' }}
+                        </button>
+                    </form>
+                @endif
             </article>
         </aside>
 

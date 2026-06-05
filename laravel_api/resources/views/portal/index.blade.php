@@ -9,7 +9,7 @@
         * { box-sizing: border-box; }
         [hidden] { display: none !important; }
         body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--ink); }
-        .shell { max-width: 1180px; margin: 0 auto; padding: 28px 20px 44px; }
+        .shell { max-width: 1360px; margin: 0 auto; padding: 28px 20px 44px; }
         header { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 22px; }
         h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); }
         h2 { margin: 0; font-size: 18px; }
@@ -23,7 +23,7 @@
         .metric { padding: 18px; }
         .metric span { display: block; color: var(--muted); font-size: 13px; }
         .metric strong { display: block; margin-top: 8px; font-size: 30px; }
-        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+        .grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr); gap: 14px; }
         .panel { padding: 18px; margin-bottom: 14px; }
         .status { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #eef5f3; color: var(--brand); }
         .status.error { background: #fdecec; color: var(--danger); }
@@ -33,7 +33,7 @@
         #technician-review-panel.is-refreshing { opacity: .82; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         .table-scroll { overflow: auto; max-height: 560px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
-        .table-scroll table { min-width: 680px; margin-top: 0; }
+        .table-scroll table { min-width: 780px; margin-top: 0; }
         .table-scroll th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
         th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; vertical-align: middle; }
         th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
@@ -57,19 +57,32 @@
         .item strong { display: block; }
         .item span { display: block; color: var(--muted); margin-top: 4px; font-size: 13px; }
         .review-scroll { max-height: 720px; overflow: auto; margin-top: 12px; padding-right: 4px; }
-        .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+        .review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px; margin-top: 12px; }
         .review-scroll .review-grid { margin-top: 0; }
         .review-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; }
         .review-images { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin: 10px 0; }
         .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 4 / 3; display: grid; place-items: center; }
         .review-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .review-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+        .review-actions { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; gap: 8px; align-items: center; }
+        .request-block-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: center; min-width: 260px; }
+        .helper { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
         @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid, .review-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images { grid-template-columns: 1fr; } .table-scroll table { min-width: 0; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
+        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images, .request-block-form { grid-template-columns: 1fr; } .table-scroll table { min-width: 0; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
     </style>
 </head>
 <body>
 <main class="shell">
+    @php
+        $formatNida = static function ($value): string {
+            $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
+            if (strlen($digits) !== 20) {
+                return $digits !== '' ? $digits : '-';
+            }
+
+            return substr($digits, 0, 8).'-'.substr($digits, 8, 5).'-'.substr($digits, 13, 5).'-'.substr($digits, 18, 2);
+        };
+        $registrationFeeMinimum = \App\Services\AppSettingsService::MIN_TECHNICIAN_REGISTRATION_FEE;
+    @endphp
     <header>
         <div>
             <p class="eyebrow">Live dispatch</p>
@@ -113,13 +126,13 @@
                     @forelse ($pendingTechnicianReviews as $technician)
                         <article class="review-card">
                             <strong>{{ $technician->name }}</strong>
-                            <span class="badge {{ $technician->registration_review_status === 'rejected' ? 'rejected' : 'pending' }}" style="margin-top:8px;">{{ $technician->registration_review_status }}</span>
+                            <span class="badge pending" style="margin-top:8px;">{{ $technician->registration_review_status }}</span>
                             <div class="item" style="margin-top:10px;">
                                 <span>Email: {{ $technician->email }}</span>
                                 <span>Phone: {{ $technician->phone ?: '-' }}</span>
-                                <span>NIDA: {{ $technician->nida ?: '-' }}</span>
+                                <span>NIDA: {{ $formatNida($technician->nida) }}</span>
                                 <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
-                                <span>Payment: {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not_requested') }} · {{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                                <span>Payment: {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not_requested') }} · {{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? $registrationFee) }}</span>
                                 @if ($technician->registration_payment_requested_at)
                                     <span>Payment requested: {{ $technician->registration_payment_requested_at->diffForHumans() }}</span>
                                 @endif
@@ -193,18 +206,42 @@
                 </div>
                 <div class="table-scroll">
                     <table>
-                        <thead><tr><th>Technician</th><th>Skills</th><th>Contact</th><th>Payment</th><th>Last seen</th><th>Status</th></tr></thead>
+                        <thead><tr><th>Technician</th><th>NIDA</th><th>Skills</th><th>Contact</th><th>Payment</th><th>Requests</th><th>Last seen</th><th>Status</th></tr></thead>
                         <tbody>
                         @forelse ($technicians as $technician)
                             <tr>
                                 <td>{{ $technician->name }}</td>
+                                <td>{{ $formatNida($technician->nida) }}</td>
                                 <td>{{ implode(', ', $technician->skills ?? []) ?: 'No skills listed' }}</td>
                                 <td>{{ $technician->phone ?: $technician->email }}</td>
                                 <td>
                                     <span class="badge {{ in_array($technician->registration_payment_status, ['success', 'settled'], true) ? '' : 'pending' }}">
                                         {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not requested') }}
                                     </span>
-                                    <span>{{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                                    <span>{{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? $registrationFee) }}</span>
+                                </td>
+                                <td>
+                                    @if ($technician->client_requests_blocked)
+                                        <span class="badge rejected">Blocked</span>
+                                        <span>{{ $technician->client_requests_blocked_reason ?: 'No reason supplied' }}</span>
+                                    @else
+                                        <span class="badge">Allowed</span>
+                                    @endif
+                                    @if (auth()->user()?->role === 'admin')
+                                        <form class="request-block-form" method="post" action="{{ route('technicians.request-block', $technician) }}" style="margin-top:8px;">
+                                            @csrf
+                                            @method('patch')
+                                            <input type="hidden" name="blocked" value="{{ $technician->client_requests_blocked ? '0' : '1' }}">
+                                            @if ($technician->client_requests_blocked)
+                                                <span class="helper">Unblock to allow new client requests.</span>
+                                            @else
+                                                <input name="reason" placeholder="Block reason">
+                                            @endif
+                                            <button class="button {{ $technician->client_requests_blocked ? 'primary' : '' }}" type="submit">
+                                                {{ $technician->client_requests_blocked ? 'Unblock' : 'Block' }}
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
                                 <td>{{ $technician->last_seen_at?->diffForHumans() ?? 'Not seen yet' }}</td>
                                 <td>
@@ -214,7 +251,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6">No technicians registered.</td></tr>
+                            <tr><td colspan="8">No technicians registered.</td></tr>
                         @endforelse
                         </tbody>
                     </table>
@@ -237,20 +274,24 @@
                             <tr>
                                 <td>{{ $technician->name }}</td>
                                 <td>
-                                    <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
-                                        {{ $technician->available ? 'Available' : 'Unavailable' }}
+                                    <span class="badge {{ $technician->client_requests_blocked ? 'rejected' : ($technician->available ? '' : 'unavailable') }}">
+                                        {{ $technician->client_requests_blocked ? 'Requests blocked' : ($technician->available ? 'Available' : 'Unavailable') }}
                                     </span>
                                 </td>
                                 <td>
                                     <div class="actions">
-                                        <form method="post" action="{{ route('technicians.availability', $technician) }}">
-                                            @csrf
-                                            @method('patch')
-                                            <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
-                                            <button class="button {{ $technician->available ? 'muted' : 'primary' }}" type="submit">
-                                                {{ $technician->available ? 'Set unavailable' : 'Set available' }}
-                                            </button>
-                                        </form>
+                                        @if ($technician->client_requests_blocked)
+                                            <span class="helper">Unblock requests first.</span>
+                                        @else
+                                            <form method="post" action="{{ route('technicians.availability', $technician) }}">
+                                                @csrf
+                                                @method('patch')
+                                                <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
+                                                <button class="button {{ $technician->available ? 'muted' : 'primary' }}" type="submit">
+                                                    {{ $technician->available ? 'Set unavailable' : 'Set available' }}
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -272,6 +313,20 @@
                     @endforelse
                 </div>
             </article>
+
+            @if (auth()->user()?->role === 'admin')
+                <article class="panel">
+                    <h2>Registration fee</h2>
+                    <form method="post" action="{{ route('settings.registration-fee') }}" class="list">
+                        @csrf
+                        @method('patch')
+                        <label for="registration-fee">Amount (TZS)</label>
+                        <input id="registration-fee" name="amount" type="number" min="{{ $registrationFeeMinimum }}" step="500" value="{{ $registrationFee }}">
+                        <p class="helper">Minimum allowed fee is TZS {{ number_format($registrationFeeMinimum) }}.</p>
+                        <button class="button primary" type="submit">Save registration fee</button>
+                    </form>
+                </article>
+            @endif
 
             <article class="panel">
                 <h2>Notifications</h2>

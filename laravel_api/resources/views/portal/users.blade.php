@@ -37,6 +37,16 @@
 </head>
 <body>
 <main class="shell">
+    @php
+        $formatNida = static function ($value): string {
+            $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
+            if (strlen($digits) !== 20) {
+                return $digits !== '' ? $digits : '-';
+            }
+
+            return substr($digits, 0, 8).'-'.substr($digits, 8, 5).'-'.substr($digits, 13, 5).'-'.substr($digits, 18, 2);
+        };
+    @endphp
     <header>
         <div>
             <p class="eyebrow">Administration</p>
@@ -118,6 +128,9 @@
                         </select>
                         @if ($user->technician)
                             <div class="badge" style="margin-top: 8px;">Technician profile</div>
+                        @endif
+                        @if ($user->nida)
+                            <div class="muted" style="margin-top: 8px;">NIDA {{ $formatNida($user->nida) }}</div>
                         @endif
                         @if ($user->blocked)
                             <div class="badge blocked" style="margin-top: 8px;">Blocked</div>
