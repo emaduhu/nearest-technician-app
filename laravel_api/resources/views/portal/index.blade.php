@@ -29,7 +29,12 @@
         .status.error { background: #fdecec; color: var(--danger); }
         #dispatch-live { transition: opacity .18s ease; }
         #dispatch-live.is-refreshing { opacity: .82; }
+        #technician-review-panel { transition: opacity .18s ease; }
+        #technician-review-panel.is-refreshing { opacity: .82; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .table-scroll { overflow: auto; max-height: 560px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
+        .table-scroll table { min-width: 680px; margin-top: 0; }
+        .table-scroll th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
         th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; vertical-align: middle; }
         th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
         .badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #eef5f3; color: var(--brand); font-size: 12px; font-weight: 800; }
@@ -51,14 +56,16 @@
         .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
         .item strong { display: block; }
         .item span { display: block; color: var(--muted); margin-top: 4px; font-size: 13px; }
+        .review-scroll { max-height: 720px; overflow: auto; margin-top: 12px; padding-right: 4px; }
         .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+        .review-scroll .review-grid { margin-top: 0; }
         .review-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; }
         .review-images { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin: 10px 0; }
         .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 4 / 3; display: grid; place-items: center; }
         .review-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .review-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
         @media (max-width: 950px) { header { align-items: flex-start; flex-direction: column; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid, .review-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images { grid-template-columns: 1fr; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
+        @media (max-width: 620px) { .metrics, .split, .review-actions, .review-images { grid-template-columns: 1fr; } .table-scroll table { min-width: 0; } table, thead, tbody, th, td, tr { display: block; } thead { display: none; } tr { border-bottom: 1px solid var(--line); padding: 10px 0; } td { border: 0; padding: 7px 0; } }
     </style>
 </head>
 <body>
@@ -96,59 +103,61 @@
     </section>
 
     @if (auth()->user()?->role === 'admin')
-        <section class="panel">
+        <section id="technician-review-panel" class="panel">
             <div class="toolbar">
                 <h2>Technician registration review</h2>
                 <span class="badge pending">{{ $pendingTechnicianReviews->where('registration_review_status', 'pending')->count() }} pending</span>
             </div>
-            <div class="review-grid">
-                @forelse ($pendingTechnicianReviews as $technician)
-                    <article class="review-card">
-                        <strong>{{ $technician->name }}</strong>
-                        <span class="badge {{ $technician->registration_review_status === 'rejected' ? 'rejected' : 'pending' }}" style="margin-top:8px;">{{ $technician->registration_review_status }}</span>
-                        <div class="item" style="margin-top:10px;">
-                            <span>Email: {{ $technician->email }}</span>
-                            <span>Phone: {{ $technician->phone ?: '-' }}</span>
-                            <span>NIDA: {{ $technician->nida ?: '-' }}</span>
-                            <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
-                            <span>Payment: {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not_requested') }} · {{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
-                            @if ($technician->registration_payment_requested_at)
-                                <span>Payment requested: {{ $technician->registration_payment_requested_at->diffForHumans() }}</span>
-                            @endif
-                        </div>
-                        <div class="review-images">
-                            <div>
-                                <label>NIDA ID</label>
-                                <div class="review-image">
-                                    @if ($technician->nida_id_image)
-                                        <img src="{{ $technician->nida_id_image }}" alt="NIDA ID for {{ $technician->name }}">
-                                    @else
-                                        <span>No NIDA image</span>
-                                    @endif
+            <div class="review-scroll">
+                <div class="review-grid">
+                    @forelse ($pendingTechnicianReviews as $technician)
+                        <article class="review-card">
+                            <strong>{{ $technician->name }}</strong>
+                            <span class="badge {{ $technician->registration_review_status === 'rejected' ? 'rejected' : 'pending' }}" style="margin-top:8px;">{{ $technician->registration_review_status }}</span>
+                            <div class="item" style="margin-top:10px;">
+                                <span>Email: {{ $technician->email }}</span>
+                                <span>Phone: {{ $technician->phone ?: '-' }}</span>
+                                <span>NIDA: {{ $technician->nida ?: '-' }}</span>
+                                <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
+                                <span>Payment: {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not_requested') }} · {{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                                @if ($technician->registration_payment_requested_at)
+                                    <span>Payment requested: {{ $technician->registration_payment_requested_at->diffForHumans() }}</span>
+                                @endif
+                            </div>
+                            <div class="review-images">
+                                <div>
+                                    <label>NIDA ID</label>
+                                    <div class="review-image">
+                                        @if ($technician->nida_id_image)
+                                            <img src="{{ $technician->nida_id_image }}" alt="NIDA ID for {{ $technician->name }}">
+                                        @else
+                                            <span>No NIDA image</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Face</label>
+                                    <div class="review-image">
+                                        @if ($technician->face_image)
+                                            <img src="{{ $technician->face_image }}" alt="Face photo for {{ $technician->name }}">
+                                        @else
+                                            <span>No face image</span>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <label>Face</label>
-                                <div class="review-image">
-                                    @if ($technician->face_image)
-                                        <img src="{{ $technician->face_image }}" alt="Face photo for {{ $technician->name }}">
-                                    @else
-                                        <span>No face image</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                        <form class="review-actions" method="post" action="{{ route('technicians.registration-review', $technician) }}">
-                            @csrf
-                            @method('patch')
-                            <input name="note" placeholder="Review note; required when rejecting">
-                            <button class="button primary" name="decision" value="approved" type="submit">Approve</button>
-                            <button class="button" name="decision" value="rejected" type="submit">Reject</button>
-                        </form>
-                    </article>
-                @empty
-                    <p>No technician registrations need review.</p>
-                @endforelse
+                            <form class="review-actions" method="post" action="{{ route('technicians.registration-review', $technician) }}">
+                                @csrf
+                                @method('patch')
+                                <input name="note" placeholder="Review note; required when rejecting">
+                                <button class="button primary" name="decision" value="approved" type="submit">Approve</button>
+                                <button class="button" name="decision" value="rejected" type="submit">Reject</button>
+                            </form>
+                        </article>
+                    @empty
+                        <p>No technician registrations need review.</p>
+                    @endforelse
+                </div>
             </div>
         </section>
     @endif
@@ -157,22 +166,24 @@
         <div>
             <article class="panel">
                 <h2>Recent requests</h2>
-                <table>
-                    <thead><tr><th>Client</th><th>Technician</th><th>Skill</th><th>Status</th><th>Distance</th></tr></thead>
-                    <tbody>
-                    @forelse ($requests as $request)
-                        <tr>
-                            <td>{{ $request->client?->name ?? 'Client' }}</td>
-                            <td>{{ $request->technician?->name ?? 'Technician' }}</td>
-                            <td>{{ $request->skill ?: 'General service' }}</td>
-                            <td><span class="badge {{ $request->status }}">{{ $request->status }}</span></td>
-                            <td>{{ $request->distance_km ?? '-' }} km</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="5">No requests yet</td></tr>
-                    @endforelse
-                    </tbody>
-                </table>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Client</th><th>Technician</th><th>Skill</th><th>Status</th><th>Distance</th></tr></thead>
+                        <tbody>
+                        @forelse ($requests as $request)
+                            <tr>
+                                <td>{{ $request->client?->name ?? 'Client' }}</td>
+                                <td>{{ $request->technician?->name ?? 'Technician' }}</td>
+                                <td>{{ $request->skill ?: 'General service' }}</td>
+                                <td><span class="badge {{ $request->status }}">{{ $request->status }}</span></td>
+                                <td>{{ $request->distance_km ?? '-' }} km</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5">No requests yet</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </article>
 
             <article class="panel">
@@ -180,32 +191,34 @@
                     <h2>Field team</h2>
                     <span class="badge">{{ $stats['technicians'] }} members</span>
                 </div>
-                <table>
-                    <thead><tr><th>Technician</th><th>Skills</th><th>Contact</th><th>Payment</th><th>Last seen</th><th>Status</th></tr></thead>
-                    <tbody>
-                    @forelse ($technicians as $technician)
-                        <tr>
-                            <td>{{ $technician->name }}</td>
-                            <td>{{ implode(', ', $technician->skills ?? []) ?: 'No skills listed' }}</td>
-                            <td>{{ $technician->phone ?: $technician->email }}</td>
-                            <td>
-                                <span class="badge {{ in_array($technician->registration_payment_status, ['success', 'settled'], true) ? '' : 'pending' }}">
-                                    {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not requested') }}
-                                </span>
-                                <span>{{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
-                            </td>
-                            <td>{{ $technician->last_seen_at?->diffForHumans() ?? 'Not seen yet' }}</td>
-                            <td>
-                                <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
-                                    {{ $technician->available ? 'Available' : 'Unavailable' }}
-                                </span>
-                            </td>
-                        </tr>
-                    @empty
-	                        <tr><td colspan="6">No technicians registered.</td></tr>
-                    @endforelse
-                    </tbody>
-                </table>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Technician</th><th>Skills</th><th>Contact</th><th>Payment</th><th>Last seen</th><th>Status</th></tr></thead>
+                        <tbody>
+                        @forelse ($technicians as $technician)
+                            <tr>
+                                <td>{{ $technician->name }}</td>
+                                <td>{{ implode(', ', $technician->skills ?? []) ?: 'No skills listed' }}</td>
+                                <td>{{ $technician->phone ?: $technician->email }}</td>
+                                <td>
+                                    <span class="badge {{ in_array($technician->registration_payment_status, ['success', 'settled'], true) ? '' : 'pending' }}">
+                                        {{ str_replace('_', ' ', $technician->registration_payment_status ?? 'not requested') }}
+                                    </span>
+                                    <span>{{ $technician->registration_fee_currency ?? 'TZS' }} {{ number_format($technician->registration_fee_amount ?? 5000) }}</span>
+                                </td>
+                                <td>{{ $technician->last_seen_at?->diffForHumans() ?? 'Not seen yet' }}</td>
+                                <td>
+                                    <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
+                                        {{ $technician->available ? 'Available' : 'Unavailable' }}
+                                    </span>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6">No technicians registered.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </article>
         </div>
 
@@ -216,35 +229,37 @@
                     <div class="availability-card"><span>Available now</span><strong>{{ $stats['available'] }}</strong></div>
                     <div class="availability-card"><span>Unavailable</span><strong>{{ $stats['unavailable'] }}</strong></div>
                 </div>
-                <table>
-                    <thead><tr><th>Technician</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody>
-                    @forelse ($technicians as $technician)
-                        <tr>
-                            <td>{{ $technician->name }}</td>
-                            <td>
-                                <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
-                                    {{ $technician->available ? 'Available' : 'Unavailable' }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    <form method="post" action="{{ route('technicians.availability', $technician) }}">
-                                        @csrf
-                                        @method('patch')
-                                        <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
-                                        <button class="button {{ $technician->available ? 'muted' : 'primary' }}" type="submit">
-                                            {{ $technician->available ? 'Set unavailable' : 'Set available' }}
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="3">No technicians registered.</td></tr>
-                    @endforelse
-                    </tbody>
-                </table>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Technician</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody>
+                        @forelse ($technicians as $technician)
+                            <tr>
+                                <td>{{ $technician->name }}</td>
+                                <td>
+                                    <span class="badge {{ $technician->available ? '' : 'unavailable' }}">
+                                        {{ $technician->available ? 'Available' : 'Unavailable' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="actions">
+                                        <form method="post" action="{{ route('technicians.availability', $technician) }}">
+                                            @csrf
+                                            @method('patch')
+                                            <input type="hidden" name="available" value="{{ $technician->available ? '0' : '1' }}">
+                                            <button class="button {{ $technician->available ? 'muted' : 'primary' }}" type="submit">
+                                                {{ $technician->available ? 'Set unavailable' : 'Set available' }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3">No technicians registered.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </article>
 
             <article class="panel">
@@ -325,12 +340,14 @@
     const updatedAt = document.getElementById('portal-updated-at');
     const statusBox = document.getElementById('portal-status');
     const errorBox = document.getElementById('portal-errors');
+    let reviewPanel = document.getElementById('technician-review-panel');
     let inFlight = false;
 
     const interactiveTags = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON']);
-    const hasActiveField = () => {
+    const hasActiveFieldIn = (element) => {
+        if (!element) return false;
         const active = document.activeElement;
-        return active && live.contains(active) && interactiveTags.has(active.tagName);
+        return active && element.contains(active) && interactiveTags.has(active.tagName);
     };
 
     const showMessage = (message, error = false) => {
@@ -355,10 +372,18 @@
 
     const syncFromDocument = (doc, force = false) => {
         const nextLive = doc.getElementById('dispatch-live');
+        const nextReviewPanel = doc.getElementById('technician-review-panel');
         const nextUpdatedAt = doc.getElementById('portal-updated-at');
-        if (nextLive && (force || !hasActiveField())) {
+
+        if (nextLive && (force || !hasActiveFieldIn(live))) {
             live.innerHTML = nextLive.innerHTML;
+            reviewPanel = document.getElementById('technician-review-panel');
+        } else if (nextReviewPanel && reviewPanel && !hasActiveFieldIn(reviewPanel)) {
+            reviewPanel.classList.add('is-refreshing');
+            reviewPanel.replaceWith(nextReviewPanel.cloneNode(true));
+            reviewPanel = document.getElementById('technician-review-panel');
         }
+
         if (nextUpdatedAt && updatedAt) {
             updatedAt.textContent = nextUpdatedAt.textContent;
         }
@@ -385,7 +410,7 @@
     };
 
     const refreshLive = async (force = false) => {
-        if (inFlight || (!force && (document.hidden || hasActiveField()))) {
+        if (inFlight || (!force && document.hidden)) {
             return;
         }
 

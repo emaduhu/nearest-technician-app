@@ -101,17 +101,17 @@ class PortalController extends Controller
             ],
             'requests' => ServiceRequest::with(['client', 'technician'])
                 ->latest()
-                ->limit(12)
+                ->limit(100)
                 ->get(),
             'technicians' => Technician::query()
                 ->where('registration_review_status', 'approved')
                 ->orderByDesc('last_seen_at')
-                ->limit(12)
+                ->limit(100)
                 ->get(),
             'pendingTechnicianReviews' => Technician::with('user')
                 ->whereIn('registration_review_status', ['pending', 'rejected'])
                 ->latest()
-                ->limit(20)
+                ->limit(100)
                 ->get(),
             'notificationUsers' => User::query()
                 ->whereNotNull('device_token')
@@ -501,6 +501,11 @@ class PortalController extends Controller
             ], [
                 'type' => 'registration_review',
                 'status' => $decision,
+                'note' => $note,
+                'reviewedAt' => now()->toISOString(),
+                'registrationPaymentStatus' => $technician->registration_payment_status ?? 'not_requested',
+                'registrationFeeAmount' => (string) ($technician->registration_fee_amount ?? config('services.clickpesa.technician_registration_fee', 5000)),
+                'registrationFeeCurrency' => $technician->registration_fee_currency ?? config('services.clickpesa.currency', 'TZS'),
                 'technicianId' => (string) $technician->id,
             ]);
         }

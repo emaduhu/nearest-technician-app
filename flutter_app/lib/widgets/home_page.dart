@@ -103,9 +103,15 @@ class _HomePageState extends State<HomePage> {
           type == 'tech_request' ||
           type == 'service_request' ||
           type == 'technician_response' ||
+          type == 'registration_review' ||
           type == 'portal_test' ||
           type == 'portal_warning' ||
           type == 'portal_news') {
+        if (type == 'registration_review') {
+          _applyRegistrationReviewPush(data);
+          return;
+        }
+
         final l10n = AppLocalizations.of(context);
         setState(() {
           if (type == 'portal_test' ||
@@ -132,6 +138,75 @@ class _HomePageState extends State<HomePage> {
     _historyTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _loadHistory();
     });
+  }
+
+  void _applyRegistrationReviewPush(Map<String, dynamic> data) {
+    final l10n = AppLocalizations.of(context);
+    final status = data['status']?.toString() ?? '';
+    if (!['approved', 'rejected', 'pending'].contains(status)) {
+      return;
+    }
+
+    final localTechnicianId = _technician?['id']?.toString() ?? '';
+    final pushedTechnicianId = data['technicianId']?.toString() ?? '';
+    if (localTechnicianId.isNotEmpty &&
+        pushedTechnicianId.isNotEmpty &&
+        localTechnicianId != pushedTechnicianId) {
+      return;
+    }
+
+    final technician = widget.session['technician'];
+    if (technician is Map) {
+      final updatedTechnician = Map<String, dynamic>.from(technician);
+      final review = updatedTechnician['registrationReview'] is Map
+          ? Map<String, dynamic>.from(
+              updatedTechnician['registrationReview'] as Map)
+          : <String, dynamic>{};
+
+      review['status'] = status;
+      review['note'] = data['note']?.toString() ?? review['note'] ?? '';
+      review['reviewedAt'] =
+          data['reviewedAt']?.toString() ?? review['reviewedAt'] ?? '';
+      updatedTechnician['registrationReview'] = review;
+      if (status == 'approved') {
+        updatedTechnician['available'] = true;
+      } else if (status == 'rejected') {
+        updatedTechnician['available'] = false;
+      }
+      widget.session['technician'] = updatedTechnician;
+    }
+
+    final approved = status == 'approved';
+    setState(() {
+      if (approved) {
+        _available = true;
+        _registrationPayment ??= {
+          'amount':
+              int.tryParse(data['registrationFeeAmount']?.toString() ?? '') ??
+                  5000,
+          'currency': data['registrationFeeCurrency']?.toString() ?? 'TZS',
+          'status':
+              data['registrationPaymentStatus']?.toString() ?? 'not_requested',
+          'actions': <dynamic>[],
+        };
+      } else {
+        _available = false;
+      }
+      _status = data['body']?.toString() ??
+          (approved
+              ? l10n.registrationReviewApproved
+              : status == 'rejected'
+                  ? l10n.registrationReviewRejected
+                  : l10n.registrationReviewPending);
+    });
+
+    _loadHistory();
+    if (approved && _locationSub == null) {
+      _startLiveLocation();
+    } else if (!approved && _locationSub != null) {
+      _locationSub?.cancel();
+      _locationSub = null;
+    }
   }
 
   Future<void> _saveDeviceToken(String token) async {
