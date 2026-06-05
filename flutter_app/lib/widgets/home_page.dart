@@ -1234,7 +1234,6 @@ class _HomePageState extends State<HomePage> {
     final l10n = AppLocalizations.of(context);
     final status = _registrationReviewStatus;
     final rejected = status == 'rejected';
-    final pending = status == 'pending';
     final title = rejected
         ? l10n.registrationReviewRejected
         : l10n.registrationReviewPending;
@@ -1295,50 +1294,43 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  _ReviewGuidanceBlock(
-                    icon: Icons.fingerprint_outlined,
-                    title: l10n.nida,
-                    body: _technicianNidaDisplay(),
-                    tone: _ReviewGuidanceTone.info,
-                  ),
-                  const SizedBox(height: 6),
                   Text(
                     title,
                     style: const TextStyle(color: Color(0xFF51616B)),
                   ),
-                  if (rejected) ...[
-                    const SizedBox(height: 8),
-                    _ReviewGuidanceBlock(
-                      icon: Icons.feedback_outlined,
-                      title: l10n.registrationReviewReason,
-                      body: note.isNotEmpty
-                          ? note
-                          : l10n.registrationReviewNoReason,
-                      tone: _ReviewGuidanceTone.danger,
-                    ),
-                    const SizedBox(height: 8),
-                    _ReviewGuidanceBlock(
-                      icon: Icons.build_circle_outlined,
-                      title: l10n.registrationReviewRectifyTitle,
-                      body: l10n.registrationReviewRectify,
-                      tone: _ReviewGuidanceTone.info,
-                    ),
-                    const SizedBox(height: 8),
-                    _ReviewGuidanceBlock(
-                      icon: Icons.visibility_off_outlined,
-                      title: l10n.newRequests,
-                      body: l10n.registrationReviewNoRequests,
-                      tone: _ReviewGuidanceTone.warning,
-                    ),
-                  ] else if (pending) ...[
-                    const SizedBox(height: 8),
-                    _ReviewGuidanceBlock(
-                      icon: Icons.visibility_off_outlined,
-                      title: l10n.newRequests,
-                      body: l10n.registrationReviewNoRequests,
-                      tone: _ReviewGuidanceTone.warning,
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  _ReviewGuidanceGrid(
+                    children: [
+                      _ReviewGuidanceBlock(
+                        icon: Icons.fingerprint_outlined,
+                        title: l10n.nida,
+                        body: _technicianNidaDisplay(),
+                        tone: _ReviewGuidanceTone.info,
+                      ),
+                      if (rejected)
+                        _ReviewGuidanceBlock(
+                          icon: Icons.feedback_outlined,
+                          title: l10n.registrationReviewReason,
+                          body: note.isNotEmpty
+                              ? note
+                              : l10n.registrationReviewNoReason,
+                          tone: _ReviewGuidanceTone.danger,
+                        ),
+                      if (rejected)
+                        _ReviewGuidanceBlock(
+                          icon: Icons.build_circle_outlined,
+                          title: l10n.registrationReviewRectifyTitle,
+                          body: l10n.registrationReviewRectify,
+                          tone: _ReviewGuidanceTone.info,
+                        ),
+                      _ReviewGuidanceBlock(
+                        icon: Icons.visibility_off_outlined,
+                        title: l10n.newRequests,
+                        body: l10n.registrationReviewNoRequests,
+                        tone: _ReviewGuidanceTone.warning,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -2007,6 +1999,65 @@ class _AppNotification {
 }
 
 enum _ReviewGuidanceTone { danger, warning, info }
+
+class _ReviewGuidanceGrid extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ReviewGuidanceGrid({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.maxWidth.isFinite || constraints.maxWidth < 560) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: List.generate(
+              children.length,
+              (index) => Padding(
+                padding: EdgeInsets.only(
+                    bottom: index == children.length - 1 ? 0 : 8),
+                child: children[index],
+              ),
+            ),
+          );
+        }
+
+        const gap = 8.0;
+        final rows = <Widget>[];
+        for (var index = 0; index < children.length; index += 2) {
+          final hasSecond = index + 1 < children.length;
+          rows.add(
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: children[index]),
+                  const SizedBox(width: gap),
+                  Expanded(
+                    child: hasSecond ? children[index + 1] : const SizedBox(),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: List.generate(
+            rows.length,
+            (index) => Padding(
+              padding:
+                  EdgeInsets.only(bottom: index == rows.length - 1 ? 0 : gap),
+              child: rows[index],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _ReviewGuidanceBlock extends StatelessWidget {
   final IconData icon;
