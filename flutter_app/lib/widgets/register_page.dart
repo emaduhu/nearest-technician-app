@@ -53,6 +53,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   String _role = 'client';
   String _status = '';
+  String _phoneVerificationMessage = '';
+  String _emailVerificationMessage = '';
   String? _token;
   String? _phoneVerificationId;
   String? _phoneIdToken;
@@ -71,6 +73,10 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _phoneVerified = false;
   bool _emailCodeSent = false;
   bool _emailVerified = false;
+  bool _phoneVerificationLoading = false;
+  bool _emailVerificationLoading = false;
+  bool _phoneVerificationError = false;
+  bool _emailVerificationError = false;
   bool _loading = false;
   bool _loginMode = false;
 
@@ -126,6 +132,9 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneIdToken = null;
       _verifiedPhone = null;
       _phoneResendToken = null;
+      _phoneVerificationLoading = false;
+      _phoneVerificationError = false;
+      _phoneVerificationMessage = '';
       _smsCodeCtrl.clear();
     });
   }
@@ -143,6 +152,9 @@ class _RegisterPageState extends State<RegisterPage> {
       _emailCodeSent = false;
       _verifiedEmail = null;
       _verifiedEmailCode = null;
+      _emailVerificationLoading = false;
+      _emailVerificationError = false;
+      _emailVerificationMessage = '';
       _emailCodeCtrl.clear();
     });
   }
@@ -178,11 +190,19 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       }
       if (!_phoneVerified || _phoneIdToken == null || _verifiedPhone != phone) {
-        setState(() => _status = l10n.phoneVerificationRequired);
+        setState(() {
+          _status = l10n.phoneVerificationRequired;
+          _phoneVerificationMessage = l10n.phoneVerificationRequired;
+          _phoneVerificationError = true;
+        });
         return;
       }
       if (!_emailVerified || _verifiedEmail != email) {
-        setState(() => _status = l10n.emailVerificationRequired);
+        setState(() {
+          _status = l10n.emailVerificationRequired;
+          _emailVerificationMessage = l10n.emailVerificationRequired;
+          _emailVerificationError = true;
+        });
         return;
       }
     }
@@ -272,13 +292,20 @@ class _RegisterPageState extends State<RegisterPage> {
     final l10n = AppLocalizations.of(context);
     final email = _emailCtrl.text.trim().toLowerCase();
     if (!_isValidEmail(email)) {
-      setState(() => _status = l10n.validEmail);
+      setState(() {
+        _status = l10n.validEmail;
+        _emailVerificationMessage = l10n.validEmail;
+        _emailVerificationError = true;
+      });
       return;
     }
 
     setState(() {
       _loading = true;
       _status = l10n.sendingEmailCode;
+      _emailVerificationLoading = true;
+      _emailVerificationError = false;
+      _emailVerificationMessage = l10n.sendingEmailCode;
     });
 
     try {
@@ -290,15 +317,27 @@ class _RegisterPageState extends State<RegisterPage> {
           _verifiedEmail = null;
           _verifiedEmailCode = null;
           _status = l10n.emailCodeSent;
+          _emailVerificationLoading = false;
+          _emailVerificationError = false;
+          _emailVerificationMessage = l10n.emailCodeSent;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _status = _messageForError(e, l10n));
+        final message = _messageForError(e, l10n);
+        setState(() {
+          _status = message;
+          _emailVerificationLoading = false;
+          _emailVerificationError = true;
+          _emailVerificationMessage = message;
+        });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _emailVerificationLoading = false;
+        });
       }
     }
   }
@@ -308,17 +347,28 @@ class _RegisterPageState extends State<RegisterPage> {
     final email = _emailCtrl.text.trim().toLowerCase();
     final code = _emailCodeCtrl.text.trim();
     if (!_isValidEmail(email)) {
-      setState(() => _status = l10n.validEmail);
+      setState(() {
+        _status = l10n.validEmail;
+        _emailVerificationMessage = l10n.validEmail;
+        _emailVerificationError = true;
+      });
       return;
     }
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      setState(() => _status = l10n.invalidVerificationCode);
+      setState(() {
+        _status = l10n.invalidVerificationCode;
+        _emailVerificationMessage = l10n.invalidVerificationCode;
+        _emailVerificationError = true;
+      });
       return;
     }
 
     setState(() {
       _loading = true;
       _status = l10n.verifyEmail;
+      _emailVerificationLoading = true;
+      _emailVerificationError = false;
+      _emailVerificationMessage = l10n.verifyEmail;
     });
 
     try {
@@ -329,15 +379,27 @@ class _RegisterPageState extends State<RegisterPage> {
           _verifiedEmail = email;
           _verifiedEmailCode = code;
           _status = l10n.emailVerified;
+          _emailVerificationLoading = false;
+          _emailVerificationError = false;
+          _emailVerificationMessage = l10n.emailVerified;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _status = _messageForError(e, l10n));
+        final message = _messageForError(e, l10n);
+        setState(() {
+          _status = message;
+          _emailVerificationLoading = false;
+          _emailVerificationError = true;
+          _emailVerificationMessage = message;
+        });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _emailVerificationLoading = false;
+        });
       }
     }
   }
@@ -346,17 +408,29 @@ class _RegisterPageState extends State<RegisterPage> {
     final l10n = AppLocalizations.of(context);
     final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
     if (!_isValidTanzaniaPhone(_phoneCtrl.text)) {
-      setState(() => _status = l10n.invalidPhone);
+      setState(() {
+        _status = l10n.invalidPhone;
+        _phoneVerificationMessage = l10n.invalidPhone;
+        _phoneVerificationError = true;
+      });
       return;
     }
     if (_phoneCooldownSeconds > 0) {
-      setState(() => _status = l10n.phoneCodeRetryIn(_phoneCooldownSeconds));
+      setState(() {
+        _status = l10n.phoneCodeRetryIn(_phoneCooldownSeconds);
+        _phoneVerificationMessage =
+            l10n.phoneCodeRetryIn(_phoneCooldownSeconds);
+        _phoneVerificationError = true;
+      });
       return;
     }
 
     setState(() {
       _loading = true;
       _status = l10n.sendingPhoneCode;
+      _phoneVerificationLoading = true;
+      _phoneVerificationError = false;
+      _phoneVerificationMessage = l10n.sendingPhoneCode;
       _phoneVerified = false;
       _phoneIdToken = null;
       _verifiedPhone = null;
@@ -375,6 +449,8 @@ class _RegisterPageState extends State<RegisterPage> {
             setState(() {
               _smsCodeCtrl.text = smsCode;
               _status = l10n.smsCodeAutoRead;
+              _phoneVerificationMessage = l10n.smsCodeAutoRead;
+              _phoneVerificationError = false;
             });
           }
           await _completePhoneVerification(credential, l10n);
@@ -384,9 +460,13 @@ class _RegisterPageState extends State<RegisterPage> {
             _startPhoneCooldown(_blockedPhoneCodeCooldown);
           }
           if (mounted) {
+            final message = _messageForError(error, l10n);
             setState(() {
               _loading = false;
-              _status = _messageForError(error, l10n);
+              _phoneVerificationLoading = false;
+              _phoneVerificationError = true;
+              _phoneVerificationMessage = message;
+              _status = message;
             });
           }
         },
@@ -398,6 +478,9 @@ class _RegisterPageState extends State<RegisterPage> {
               _phoneResendToken = resendToken;
               _phoneCodeSent = true;
               _status = l10n.phoneCodeSent;
+              _phoneVerificationLoading = false;
+              _phoneVerificationError = false;
+              _phoneVerificationMessage = l10n.phoneCodeSent;
             });
           }
         },
@@ -412,11 +495,20 @@ class _RegisterPageState extends State<RegisterPage> {
         _startPhoneCooldown(_blockedPhoneCodeCooldown);
       }
       if (mounted) {
-        setState(() => _status = _messageForError(e, l10n));
+        final message = _messageForError(e, l10n);
+        setState(() {
+          _status = message;
+          _phoneVerificationLoading = false;
+          _phoneVerificationError = true;
+          _phoneVerificationMessage = message;
+        });
       }
     } finally {
       if (mounted && !_phoneCodeSent && !_phoneVerified) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _phoneVerificationLoading = false;
+        });
       }
     }
   }
@@ -426,17 +518,28 @@ class _RegisterPageState extends State<RegisterPage> {
     final verificationId = _phoneVerificationId;
     final code = _smsCodeCtrl.text.trim();
     if (verificationId == null || verificationId.isEmpty) {
-      setState(() => _status = l10n.phoneVerificationRequired);
+      setState(() {
+        _status = l10n.phoneVerificationRequired;
+        _phoneVerificationMessage = l10n.phoneVerificationRequired;
+        _phoneVerificationError = true;
+      });
       return;
     }
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      setState(() => _status = l10n.invalidVerificationCode);
+      setState(() {
+        _status = l10n.invalidVerificationCode;
+        _phoneVerificationMessage = l10n.invalidVerificationCode;
+        _phoneVerificationError = true;
+      });
       return;
     }
 
     setState(() {
       _loading = true;
       _status = l10n.verifyPhone;
+      _phoneVerificationLoading = true;
+      _phoneVerificationError = false;
+      _phoneVerificationMessage = l10n.verifyPhone;
     });
 
     final credential = PhoneAuthProvider.credential(
@@ -473,15 +576,22 @@ class _RegisterPageState extends State<RegisterPage> {
           _phoneIdToken = token;
           _verifiedPhone = enteredPhone;
           _status = l10n.phoneVerified;
+          _phoneVerificationLoading = false;
+          _phoneVerificationError = false;
+          _phoneVerificationMessage = l10n.phoneVerified;
         });
       }
     } catch (e) {
       if (mounted) {
+        final message = e is FirebaseAuthException
+            ? (e.message ?? l10n.phoneVerificationFailed)
+            : _messageForError(e, l10n);
         setState(() {
           _loading = false;
-          _status = e is FirebaseAuthException
-              ? (e.message ?? l10n.phoneVerificationFailed)
-              : _messageForError(e, l10n);
+          _phoneVerificationLoading = false;
+          _phoneVerificationError = true;
+          _phoneVerificationMessage = message;
+          _status = message;
         });
       }
     }
@@ -859,6 +969,12 @@ class _RegisterPageState extends State<RegisterPage> {
                                   label: l10n.verifyPhone,
                                 ),
                               ],
+                              _VerificationInlineFeedback(
+                                loading: _phoneVerificationLoading,
+                                message: _phoneVerificationMessage,
+                                isError: _phoneVerificationError,
+                                isSuccess: _phoneVerified,
+                              ),
                               if (_role == 'technician') ...[
                                 const SizedBox(height: 12),
                                 TextFormField(
@@ -989,6 +1105,12 @@ class _RegisterPageState extends State<RegisterPage> {
                                   label: l10n.verifyEmail,
                                 ),
                               ],
+                              _VerificationInlineFeedback(
+                                loading: _emailVerificationLoading,
+                                message: _emailVerificationMessage,
+                                isError: _emailVerificationError,
+                                isSuccess: _emailVerified,
+                              ),
                             ],
                             const SizedBox(height: 12),
                             TextFormField(
@@ -1052,6 +1174,77 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerificationInlineFeedback extends StatelessWidget {
+  final bool loading;
+  final String message;
+  final bool isError;
+  final bool isSuccess;
+
+  const _VerificationInlineFeedback({
+    required this.loading,
+    required this.message,
+    required this.isError,
+    required this.isSuccess,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!loading && message.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final color = Theme.of(context).colorScheme;
+    final background = isError
+        ? color.errorContainer
+        : isSuccess
+            ? const Color(0xFFE7F7F3)
+            : const Color(0xFFF8FAFC);
+    final foreground = isError
+        ? color.onErrorContainer
+        : isSuccess
+            ? const Color(0xFF0F766E)
+            : const Color(0xFF30414A);
+    final borderColor = isError
+        ? color.error.withValues(alpha: 0.25)
+        : isSuccess
+            ? const Color(0xFF99F6E4)
+            : const Color(0xFFDCE4E8);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (loading) ...[
+              LinearProgressIndicator(
+                minHeight: 3,
+                color: isError ? color.error : color.primary,
+                backgroundColor: Colors.white,
+              ),
+              if (message.trim().isNotEmpty) const SizedBox(height: 8),
+            ],
+            if (message.trim().isNotEmpty)
+              Text(
+                message,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: foreground),
+              ),
+          ],
         ),
       ),
     );
