@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -34,6 +35,9 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  static const Duration _phoneCodeCooldown = Duration(seconds: 60);
+  static const Duration _blockedPhoneCodeCooldown = Duration(minutes: 15);
+
   final FcmService _fcm = FcmService();
   final ApiService _api = ApiService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -60,6 +64,9 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _faceImageData;
   Uint8List? _nidaCardPreview;
   Uint8List? _facePreview;
+  Timer? _phoneCooldownTimer;
+  DateTime? _nextPhoneCodeAt;
+  int _phoneCooldownSeconds = 0;
   bool _phoneCodeSent = false;
   bool _phoneVerified = false;
   bool _emailCodeSent = false;
@@ -342,6 +349,10 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() => _status = l10n.invalidPhone);
       return;
     }
+    if (_phoneCooldownSeconds > 0) {
+      setState(() => _status = l10n.phoneCodeRetryIn(_phoneCooldownSeconds));
+      return;
+    }
 
     setState(() {
       _loading = true;
@@ -350,6 +361,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneIdToken = null;
       _verifiedPhone = null;
     });
+    _startPhoneCooldown(_phoneCodeCooldown);
 
     try {
       await FirebaseAuth.instance.setLanguageCode(widget.locale.languageCode);
@@ -368,10 +380,13 @@ class _RegisterPageState extends State<RegisterPage> {
           await _completePhoneVerification(credential, l10n);
         },
         verificationFailed: (error) {
+          if (_isPhoneAuthTemporarilyBlocked(error)) {
+            _startPhoneCooldown(_blockedPhoneCodeCooldown);
+          }
           if (mounted) {
             setState(() {
               _loading = false;
-              _status = error.message ?? l10n.phoneVerificationFailed;
+              _status = _messageForError(error, l10n);
             });
           }
         },
@@ -393,6 +408,9 @@ class _RegisterPageState extends State<RegisterPage> {
         },
       );
     } catch (e) {
+      if (_isPhoneAuthTemporarilyBlocked(e)) {
+        _startPhoneCooldown(_blockedPhoneCodeCooldown);
+      }
       if (mounted) {
         setState(() => _status = _messageForError(e, l10n));
       }
@@ -517,11 +535,81 @@ class _RegisterPageState extends State<RegisterPage> {
       return l10n.invalidCredentials;
     }
 
+    if (_isPhoneAuthTemporarilyBlocked(error)) {
+      return l10n.phoneVerificationTemporarilyBlocked;
+    }
+
+    if (error is FirebaseAuthException) {
+      final message = error.message;
+      if (error.code == 'invalid-phone-number') {
+        return l10n.invalidPhone;
+      }
+      if (_isPhoneAuthAppIdentifierError(error)) {
+        return l10n.phoneVerificationAppIdentifierError;
+      }
+      if (message != null && message.trim().isNotEmpty) {
+        return message;
+      }
+      return l10n.phoneVerificationFailed;
+    }
+
     if (error is ApiException && error.code == 'unsupported_payment_operator') {
       return l10n.mpesaNotSupported;
     }
 
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  bool _isPhoneAuthTemporarilyBlocked(Object error) {
+    if (error is! FirebaseAuthException) {
+      return false;
+    }
+
+    final code = error.code.toLowerCase();
+    final message = (error.message ?? '').toLowerCase();
+    return code == 'too-many-requests' ||
+        code == 'quota-exceeded' ||
+        message.contains('blocked all requests') ||
+        message.contains('unusual activity') ||
+        message.contains('too many attempts') ||
+        message.contains('quota');
+  }
+
+  bool _isPhoneAuthAppIdentifierError(FirebaseAuthException error) {
+    final message = (error.message ?? '').toLowerCase();
+    return message.contains('valid app identifier') ||
+        message.contains('play integrity') ||
+        message.contains('recaptcha');
+  }
+
+  void _startPhoneCooldown(Duration duration) {
+    _phoneCooldownTimer?.cancel();
+    _nextPhoneCodeAt = DateTime.now().add(duration);
+    _updatePhoneCooldown();
+    _phoneCooldownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _updatePhoneCooldown(),
+    );
+  }
+
+  void _updatePhoneCooldown() {
+    final nextPhoneCodeAt = _nextPhoneCodeAt;
+    final remaining = nextPhoneCodeAt == null
+        ? 0
+        : nextPhoneCodeAt.difference(DateTime.now()).inSeconds + 1;
+    final seconds = remaining > 0 ? remaining : 0;
+
+    if (seconds == 0) {
+      _phoneCooldownTimer?.cancel();
+      _phoneCooldownTimer = null;
+      _nextPhoneCodeAt = null;
+    }
+
+    if (mounted) {
+      setState(() => _phoneCooldownSeconds = seconds);
+    } else {
+      _phoneCooldownSeconds = seconds;
+    }
   }
 
   String _normalizedTanzaniaPhone(String value) {
@@ -574,6 +662,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _phoneCooldownTimer?.cancel();
     _nidaCtrl.removeListener(_handleNidaChanged);
     _phoneCtrl.removeListener(_handlePhoneChanged);
     _emailCtrl.removeListener(_handleEmailChanged);
@@ -721,12 +810,19 @@ class _RegisterPageState extends State<RegisterPage> {
                                 helper: l10n.smsAutoReadHint,
                                 verified: _phoneVerified,
                                 sent: _phoneCodeSent,
-                                onPressed: _loading ? null : _sendPhoneCode,
+                                onPressed: _loading ||
+                                        _phoneVerified ||
+                                        _phoneCooldownSeconds > 0
+                                    ? null
+                                    : _sendPhoneCode,
                                 label: Text(_phoneVerified
                                     ? l10n.phoneVerified
-                                    : _phoneCodeSent
-                                        ? l10n.resendPhoneCode
-                                        : l10n.sendPhoneCode),
+                                    : _phoneCooldownSeconds > 0
+                                        ? l10n.phoneCodeRetryIn(
+                                            _phoneCooldownSeconds)
+                                        : _phoneCodeSent
+                                            ? l10n.resendPhoneCode
+                                            : l10n.sendPhoneCode),
                                 icon: _phoneVerified
                                     ? Icons.verified_outlined
                                     : Icons.sms_outlined,

@@ -167,6 +167,22 @@ class AppLocalizations {
   String get phoneVerificationFailed => isSwahili
       ? 'Uthibitishaji wa simu umeshindikana'
       : 'Phone verification failed';
+  String get phoneVerificationTemporarilyBlocked => isSwahili
+      ? 'Firebase imezuia kwa muda maombi ya SMS kutoka kwenye kifaa au namba hii. Subiri kabla ya kujaribu tena, au tumia namba ya majaribio ya Firebase wakati wa testing.'
+      : 'Firebase has temporarily blocked SMS requests from this device or phone number. Wait before trying again, or use a Firebase test phone number during testing.';
+  String get phoneVerificationAppIdentifierError => isSwahili
+      ? 'Firebase haijatambua app hii kwa uthibitishaji wa simu. Hakikisha SHA-1/SHA-256 na google-services.json vimesanidiwa upya.'
+      : 'Firebase could not identify this app for phone verification. Confirm SHA-1/SHA-256 and refresh google-services.json.';
+  String phoneCodeRetryIn(int seconds) {
+    final safeSeconds = seconds < 0 ? 0 : seconds;
+    final minutes = safeSeconds ~/ 60;
+    final remainingSeconds = safeSeconds % 60;
+    final time = minutes > 0
+        ? '${minutes}m ${remainingSeconds.toString().padLeft(2, '0')}s'
+        : '${remainingSeconds}s';
+    return isSwahili ? 'Jaribu tena baada ya $time' : 'Try again in $time';
+  }
+
   String get sendEmailCode =>
       isSwahili ? 'Tuma msimbo wa barua pepe' : 'Send email code';
   String get verifyEmail =>
