@@ -116,6 +116,11 @@ class PortalController extends Controller
                 ->latest()
                 ->limit(100)
                 ->get(),
+            'rejectedTechnicianReviews' => Technician::with('user')
+                ->where('registration_review_status', 'rejected')
+                ->latest()
+                ->limit(100)
+                ->get(),
             'notificationUsers' => User::query()
                 ->whereNotNull('device_token')
                 ->where('device_token', '!=', '')
@@ -247,6 +252,40 @@ class PortalController extends Controller
             'status',
             ($approved ? 'Technician registration approved.' : 'Technician registration rejected.').$deliveryText
         );
+    }
+
+    public function unrejectTechnicianRegistration(Request $request, Technician $technician, PushNotificationService $push): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        if (($technician->registration_review_status ?? 'approved') !== 'rejected') {
+            return redirect()->route('dispatch')->withErrors(['registration' => 'Only rejected technician registrations can be un-rejected.']);
+        }
+
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+        $note = trim((string) ($data['note'] ?? ''));
+
+        $technician->update([
+            'registration_review_status' => 'approved',
+            'registration_review_note' => $note !== '' ? $note : null,
+            'registration_reviewed_at' => now(),
+            'registration_reviewed_by' => $request->user()->id,
+            'client_requests_blocked' => false,
+            'client_requests_blocked_reason' => null,
+            'available' => true,
+            'last_seen_at' => now(),
+        ]);
+
+        $delivery = $this->notifyTechnicianRegistrationReview($push, $technician->fresh('user'), 'approved', $note);
+        $deliveryText = sprintf(
+            ' Push: %s. Email: %s.',
+            $delivery['push'] ? 'sent' : 'not sent',
+            $delivery['email'] ? 'sent' : 'not sent'
+        );
+
+        return redirect()->route('dispatch')->with('status', 'Technician registration un-rejected and approved.'.$deliveryText);
     }
 
     public function sendTestNotification(Request $request, PushNotificationService $push): RedirectResponse
@@ -566,6 +605,7 @@ class PortalController extends Controller
                 'registrationPaymentStatus' => $technician->registration_payment_status ?? 'not_requested',
                 'registrationFeeAmount' => (string) ($technician->registration_fee_amount ?? app(AppSettingsService::class)->technicianRegistrationFee()),
                 'registrationFeeCurrency' => $technician->registration_fee_currency ?? config('services.clickpesa.currency', 'TZS'),
+                'clientRequestsBlocked' => $technician->client_requests_blocked ? 'true' : 'false',
                 'technicianId' => (string) $technician->id,
             ]);
         }

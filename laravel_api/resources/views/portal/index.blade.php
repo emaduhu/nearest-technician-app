@@ -67,6 +67,7 @@
         .review-image { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f8fafc; aspect-ratio: 16 / 9; max-height: 104px; display: grid; place-items: center; }
         .review-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .review-actions { display: grid; grid-template-columns: minmax(130px, 1fr) auto auto; gap: 6px; align-items: center; }
+        .review-actions.single-action { grid-template-columns: minmax(130px, 1fr) auto; }
         .review-actions input { padding: 8px; font-size: 12px; }
         .review-actions .button { padding: 8px 9px; }
         .request-block-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: center; min-width: 260px; }
@@ -174,6 +175,41 @@
                         </article>
                     @empty
                         <p>No technician registrations need review.</p>
+                    @endforelse
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="toolbar">
+                <h2>Rejected technician registrations</h2>
+                <span class="badge rejected">{{ $rejectedTechnicianReviews->count() }} rejected</span>
+            </div>
+            <div class="review-scroll">
+                <div class="review-grid">
+                    @forelse ($rejectedTechnicianReviews as $technician)
+                        <article class="review-card">
+                            <strong>{{ $technician->name }}</strong>
+                            <span class="badge rejected" style="margin-top:8px;">rejected</span>
+                            <div class="item" style="margin-top:10px;">
+                                <span>Email: {{ $technician->email }}</span>
+                                <span>Phone: {{ $technician->phone ?: '-' }}</span>
+                                <span>NIDA: {{ $formatNida($technician->nida) }}</span>
+                                <span>Skills: {{ implode(', ', $technician->skills ?? []) ?: '-' }}</span>
+                                <span>Reason: {{ \Illuminate\Support\Str::limit($technician->registration_review_note ?: 'No reason supplied', 120) }}</span>
+                                @if ($technician->registration_reviewed_at)
+                                    <span>Rejected: {{ $technician->registration_reviewed_at->diffForHumans() }}</span>
+                                @endif
+                            </div>
+                            <form class="review-actions single-action" method="post" action="{{ route('technicians.registration-review.unreject', $technician) }}">
+                                @csrf
+                                @method('patch')
+                                <input name="note" placeholder="Optional approval note">
+                                <button class="button primary" type="submit">Un-reject</button>
+                            </form>
+                        </article>
+                    @empty
+                        <p>No rejected technician registrations.</p>
                     @endforelse
                 </div>
             </div>

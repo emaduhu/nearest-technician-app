@@ -19,6 +19,7 @@ Route::middleware('auth')->group(function (): void {
     Route::patch('/users/{user}/block', [PortalController::class, 'toggleUserBlock'])->name('users.block');
     Route::patch('/settings/registration-fee', [PortalController::class, 'updateRegistrationFee'])->name('settings.registration-fee');
     Route::patch('/technicians/{technician}/registration-review', [PortalController::class, 'reviewTechnicianRegistration'])->name('technicians.registration-review');
+    Route::patch('/technicians/{technician}/registration-review/unreject', [PortalController::class, 'unrejectTechnicianRegistration'])->name('technicians.registration-review.unreject');
     Route::patch('/technicians/{technician}/availability', [PortalController::class, 'updateTechnicianAvailability'])->name('technicians.availability');
     Route::patch('/technicians/{technician}/request-block', [PortalController::class, 'toggleTechnicianRequestBlock'])->name('technicians.request-block');
     Route::post('/notifications/test', [PortalController::class, 'sendTestNotification'])->name('notifications.test');
