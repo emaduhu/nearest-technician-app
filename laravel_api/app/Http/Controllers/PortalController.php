@@ -174,7 +174,7 @@ class PortalController extends Controller
             'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
         ]);
 
-        return redirect()->route('dispatch')->with('status', 'Registration fee updated.');
+        return redirect()->route('dispatch')->with('status', 'Registration fee updated. New technician registrations and unpaid technicians will use it immediately.');
     }
 
     public function updateTechnicianAvailability(Request $request, Technician $technician): RedirectResponse
@@ -679,6 +679,10 @@ class PortalController extends Controller
         $technician = Technician::where('user_id', $user->id)
             ->orWhere('email', $user->email)
             ->first();
+        $attributes = [
+            ...$attributes,
+            ...$this->currentRegistrationFeeAttributes($technician),
+        ];
 
         if ($technician) {
             $technician->update($attributes);
@@ -687,5 +691,18 @@ class PortalController extends Controller
         }
 
         Technician::create($attributes);
+    }
+
+    private function currentRegistrationFeeAttributes(?Technician $technician = null): array
+    {
+        $status = $technician?->registration_payment_status;
+        if (in_array($status, ['processing', 'pending', 'success', 'settled'], true)) {
+            return [];
+        }
+
+        return [
+            'registration_fee_amount' => app(AppSettingsService::class)->technicianRegistrationFee(),
+            'registration_fee_currency' => config('services.clickpesa.currency', 'TZS'),
+        ];
     }
 }
