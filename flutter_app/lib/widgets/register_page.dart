@@ -438,7 +438,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _startPhoneCooldown(_phoneCodeCooldown);
 
     try {
-      await FirebaseAuth.instance.setLanguageCode(widget.locale.languageCode);
+      await _preparePhoneAuthForSms();
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: '+$phone',
         timeout: const Duration(seconds: 60),
@@ -510,6 +510,19 @@ class _RegisterPageState extends State<RegisterPage> {
           _phoneVerificationLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _preparePhoneAuthForSms() async {
+    await FirebaseAuth.instance.setLanguageCode(widget.locale.languageCode);
+    try {
+      await FirebaseAuth.instance.initializeRecaptchaConfig();
+    } on FirebaseAuthException catch (error) {
+      if (_isPhoneAuthAppIdentifierError(error)) {
+        rethrow;
+      }
+    } catch (_) {
+      // The verification request can still fetch the config during its own flow.
     }
   }
 
@@ -688,7 +701,16 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isPhoneAuthAppIdentifierError(FirebaseAuthException error) {
     final code = error.code.toLowerCase();
     final message = (error.message ?? '').toLowerCase();
-    return code == 'internal-error' && message.contains('error code:39') ||
+    final compactMessage = message.replaceAll(RegExp(r'\s+'), '');
+    final hasCode39 = compactMessage.contains('errorcode:39') ||
+        compactMessage.contains('errorcode:-39') ||
+        compactMessage.contains('code:39') ||
+        compactMessage.contains('code:-39');
+
+    return code == 'missing-client-identifier' ||
+        code == 'invalid-app-credential' ||
+        code == 'invalid-app-credentials' ||
+        ((code == 'internal-error' || code == 'unknown') && hasCode39) ||
         message.contains('valid app identifier') ||
         message.contains('play integrity') ||
         message.contains('recaptcha') ||
