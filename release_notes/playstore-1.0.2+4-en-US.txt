@@ -1,0 +1,6 @@
+Version 1.0.2 (4)
+
+- Improved phone verification reliability and Error 39 handling.
+- Added a notifications center for account and request updates.
+- Improved technician registration review, NIDA display, payment status, and fee handling.
+- Clearer under-review and rejected registration guidance.

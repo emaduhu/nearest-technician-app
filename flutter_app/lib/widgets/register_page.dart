@@ -518,9 +518,10 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       await FirebaseAuth.instance.initializeRecaptchaConfig();
     } on FirebaseAuthException catch (error) {
-      if (_isPhoneAuthAppIdentifierError(error)) {
-        rethrow;
-      }
+      debugPrint(
+        'Firebase phone auth reCAPTCHA preflight failed: '
+        '${error.code} ${error.message ?? ''}',
+      );
     } catch (_) {
       // The verification request can still fetch the config during its own flow.
     }
@@ -667,6 +668,11 @@ class _RegisterPageState extends State<RegisterPage> {
       if (error.code == 'invalid-phone-number') {
         return l10n.invalidPhone;
       }
+      if (error.code == 'invalid-verification-code' ||
+          error.code == 'missing-verification-code' ||
+          error.code == 'session-expired') {
+        return l10n.invalidVerificationCode;
+      }
       if (_isPhoneAuthAppIdentifierError(error)) {
         return l10n.phoneVerificationAppIdentifierError;
       }
@@ -708,9 +714,15 @@ class _RegisterPageState extends State<RegisterPage> {
         compactMessage.contains('code:-39');
 
     return code == 'missing-client-identifier' ||
+        code == 'app-not-authorized' ||
         code == 'invalid-app-credential' ||
         code == 'invalid-app-credentials' ||
+        code == 'captcha-check-failed' ||
         ((code == 'internal-error' || code == 'unknown') && hasCode39) ||
+        message.contains('app-not-authorized') ||
+        message.contains('not authorized') ||
+        message.contains('configuration_not_found') ||
+        message.contains('missing client identifier') ||
         message.contains('valid app identifier') ||
         message.contains('play integrity') ||
         message.contains('recaptcha') ||
