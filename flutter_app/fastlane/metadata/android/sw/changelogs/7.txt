@@ -1,0 +1,3 @@
+Tumeboresha uchunguzi wa uthibitishaji wa simu wa Firebase kwa majaribio ya production.
+Tumeongeza kumbukumbu zilizo wazi zaidi kwa hitilafu za reCAPTCHA, Play Integrity, na SMS.
+Toleo hili linasaidia kuchunguza uthibitishaji wa namba halisi kwenye app iliyosakinishwa kupitia Play.

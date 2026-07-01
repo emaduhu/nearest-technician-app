@@ -1,0 +1,2 @@
+Added diagnostic logging for Firebase phone verification to help resolve production SMS verification failures.
+Improved visibility into reCAPTCHA and phone auth error states.

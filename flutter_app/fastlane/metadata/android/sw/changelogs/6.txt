@@ -1,0 +1,2 @@
+Tumeongeza kumbukumbu za uchunguzi kwa uthibitishaji wa simu wa Firebase ili kusaidia kutatua hitilafu za SMS kwenye production.
+Tumeongeza ufuatiliaji wa hali za reCAPTCHA na makosa ya uthibitishaji wa simu.

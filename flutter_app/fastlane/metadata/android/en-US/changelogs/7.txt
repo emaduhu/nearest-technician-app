@@ -1,0 +1,3 @@
+Improved Firebase phone verification diagnostics for production testing.
+Added clearer logging for reCAPTCHA, Play Integrity, and SMS verification failures.
+Includes updates to support troubleshooting real phone number verification from Play-installed builds.

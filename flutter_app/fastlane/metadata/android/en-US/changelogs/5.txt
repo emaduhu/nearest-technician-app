@@ -1,0 +1,3 @@
+Improved Firebase phone number verification for production builds.
+Added support for Play App Signing fingerprints used by Google Play installs.
+Updated SMS verification setup for Tanzania numbers.

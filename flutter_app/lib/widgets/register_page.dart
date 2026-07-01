@@ -439,11 +439,16 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       await _preparePhoneAuthForSms();
+      _logPhoneAuthStage('verifyPhoneNumber:start', phoneNumber: '+$phone');
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: '+$phone',
         timeout: const Duration(seconds: 60),
         forceResendingToken: _phoneCodeSent ? _phoneResendToken : null,
         verificationCompleted: (credential) async {
+          _logPhoneAuthStage(
+            'verificationCompleted',
+            detail: 'smsCodePresent=${credential.smsCode != null}',
+          );
           final smsCode = credential.smsCode;
           if (smsCode != null && smsCode.isNotEmpty && mounted) {
             setState(() {
@@ -456,6 +461,7 @@ class _RegisterPageState extends State<RegisterPage> {
           await _completePhoneVerification(credential, l10n);
         },
         verificationFailed: (error) {
+          _logPhoneAuthError('verificationFailed', error);
           if (_isPhoneAuthTemporarilyBlocked(error)) {
             _startPhoneCooldown(_blockedPhoneCodeCooldown);
           }
@@ -471,6 +477,10 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         },
         codeSent: (verificationId, resendToken) {
+          _logPhoneAuthStage(
+            'codeSent',
+            detail: 'resendTokenPresent=${resendToken != null}',
+          );
           if (mounted) {
             setState(() {
               _loading = false;
@@ -485,12 +495,14 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         },
         codeAutoRetrievalTimeout: (verificationId) {
+          _logPhoneAuthStage('codeAutoRetrievalTimeout');
           if (mounted && !_phoneVerified) {
             setState(() => _phoneVerificationId = verificationId);
           }
         },
       );
     } catch (e) {
+      _logPhoneAuthError('verifyPhoneNumber:catch', e);
       if (_isPhoneAuthTemporarilyBlocked(e)) {
         _startPhoneCooldown(_blockedPhoneCodeCooldown);
       }
@@ -518,10 +530,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       await FirebaseAuth.instance.initializeRecaptchaConfig();
     } on FirebaseAuthException catch (error) {
-      debugPrint(
-        'Firebase phone auth reCAPTCHA preflight failed: '
-        '${error.code} ${error.message ?? ''}',
-      );
+      _logPhoneAuthError('initializeRecaptchaConfig', error);
     } catch (_) {
       // The verification request can still fetch the config during its own flow.
     }
@@ -596,6 +605,7 @@ class _RegisterPageState extends State<RegisterPage> {
         });
       }
     } catch (e) {
+      _logPhoneAuthError('signInWithCredential', e);
       if (mounted) {
         final message = e is FirebaseAuthException
             ? (e.message ?? l10n.phoneVerificationFailed)
@@ -609,6 +619,37 @@ class _RegisterPageState extends State<RegisterPage> {
         });
       }
     }
+  }
+
+  void _logPhoneAuthStage(
+    String stage, {
+    String? phoneNumber,
+    String? detail,
+  }) {
+    final maskedPhone = phoneNumber?.replaceRange(
+      4,
+      phoneNumber.length > 4 ? phoneNumber.length : 4,
+      '*******',
+    );
+    debugPrint(
+      '[PhoneAuth] stage=$stage'
+      '${maskedPhone == null ? '' : ' phone=$maskedPhone'}'
+      '${detail == null ? '' : ' $detail'}',
+    );
+  }
+
+  void _logPhoneAuthError(String stage, Object error) {
+    if (error is FirebaseAuthException) {
+      debugPrint(
+        '[PhoneAuth] stage=$stage '
+        'code=${error.code} plugin=${error.plugin} '
+        'message=${error.message ?? '<empty>'} '
+        'stack=${error.stackTrace ?? '<empty>'}',
+      );
+      return;
+    }
+
+    debugPrint('[PhoneAuth] stage=$stage error=$error');
   }
 
   Future<void> _captureRegistrationPhoto(_RegistrationPhotoType type) async {

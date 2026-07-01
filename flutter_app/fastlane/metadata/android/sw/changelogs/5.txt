@@ -1,0 +1,3 @@
+Tumeboresha uthibitishaji wa namba ya simu kupitia Firebase kwa matoleo ya production.
+Tumeongeza usaidizi wa alama za Play App Signing kwa usakinishaji kupitia Google Play.
+Tumesasisha usanidi wa uthibitishaji wa SMS kwa namba za Tanzania.
