@@ -1,7 +1,7 @@
 name: nearest_technician_app
 description: Nearest technician demo with Firebase integration
 publish_to: 'none'
-version: 1.0.5+7
+version: 1.0.7+9
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -11,14 +11,14 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  firebase_core: ^4.7.0
-  firebase_messaging: ^16.2.0
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
   http: ^1.6.0
   geolocator: ^14.0.2
   permission_handler: ^12.0.1
   url_launcher: ^6.3.2
   upgrader: ^13.2.0
-  firebase_auth: ^6.5.1
+  firebase_auth: ^6.5.4
   image_picker: ^1.2.2
 
 dev_dependencies:

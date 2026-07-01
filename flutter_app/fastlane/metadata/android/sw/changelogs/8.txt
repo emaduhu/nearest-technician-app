@@ -1,0 +1,3 @@
+Tumesasisha maktaba za Firebase kwa uthibitishaji wa simu.
+Tumeondoa hatua isiyohitajika ya awali ya reCAPTCHA wakati wa uthibitishaji wa SMS kwenye Android.
+Tumeboresha uchunguzi wa uthibitishaji wa simu kwa app iliyosakinishwa kupitia Play.

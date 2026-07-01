@@ -1,0 +1,3 @@
+Updated Firebase libraries for phone authentication.
+Removed an unnecessary reCAPTCHA preflight during Android SMS verification.
+Improved production Play-installed phone verification troubleshooting.

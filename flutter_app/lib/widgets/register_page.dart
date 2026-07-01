@@ -58,6 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _token;
   String? _phoneVerificationId;
   String? _phoneIdToken;
+  String? _phoneVerificationProvider;
   String? _verifiedPhone;
   int? _phoneResendToken;
   String? _verifiedEmail;
@@ -130,6 +131,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneCodeSent = false;
       _phoneVerificationId = null;
       _phoneIdToken = null;
+      _phoneVerificationProvider = null;
       _verifiedPhone = null;
       _phoneResendToken = null;
       _phoneVerificationLoading = false;
@@ -237,6 +239,7 @@ class _RegisterPageState extends State<RegisterPage> {
               _verifiedEmailCode ?? _emailCodeCtrl.text.trim(),
           'password': _passwordCtrl.text,
           'phoneVerificationIdToken': _phoneIdToken,
+          'phoneVerificationProvider': _phoneVerificationProvider,
           'skills': _skillsCtrl.text,
           'token': _token ?? '',
           'lat': pos.latitude,
@@ -433,11 +436,22 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneVerificationMessage = l10n.sendingPhoneCode;
       _phoneVerified = false;
       _phoneIdToken = null;
+      _phoneVerificationProvider = null;
       _verifiedPhone = null;
     });
     _startPhoneCooldown(_phoneCodeCooldown);
 
     try {
+      final providerResponse = await _api.phoneVerificationProvider();
+      final provider =
+          providerResponse['provider']?.toString().trim() ?? 'firebase';
+      _phoneVerificationProvider = provider;
+
+      if (provider == 'beem_africa') {
+        await _sendBackendPhoneCode(phone, l10n);
+        return;
+      }
+
       await _preparePhoneAuthForSms();
       _logPhoneAuthStage('verifyPhoneNumber:start', phoneNumber: '+$phone');
       await FirebaseAuth.instance.verifyPhoneNumber(
@@ -527,12 +541,29 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _preparePhoneAuthForSms() async {
     await FirebaseAuth.instance.setLanguageCode(widget.locale.languageCode);
-    try {
-      await FirebaseAuth.instance.initializeRecaptchaConfig();
-    } on FirebaseAuthException catch (error) {
-      _logPhoneAuthError('initializeRecaptchaConfig', error);
-    } catch (_) {
-      // The verification request can still fetch the config during its own flow.
+  }
+
+  Future<void> _sendBackendPhoneCode(
+    String phone,
+    AppLocalizations l10n,
+  ) async {
+    final response = await _api.sendPhoneVerification(phone);
+    final verificationId = response['verificationId']?.toString() ?? '';
+    if (verificationId.isEmpty) {
+      throw Exception(l10n.phoneVerificationFailed);
+    }
+
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _phoneVerificationId = verificationId;
+        _phoneCodeSent = true;
+        _phoneResendToken = null;
+        _status = l10n.phoneCodeSent;
+        _phoneVerificationLoading = false;
+        _phoneVerificationError = false;
+        _phoneVerificationMessage = l10n.phoneCodeSent;
+      });
     }
   }
 
@@ -565,11 +596,62 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneVerificationMessage = l10n.verifyPhone;
     });
 
+    if (_phoneVerificationProvider == 'beem_africa') {
+      await _completeBackendPhoneVerification(verificationId, code, l10n);
+      return;
+    }
+
     final credential = PhoneAuthProvider.credential(
       verificationId: verificationId,
       smsCode: code,
     );
     await _completePhoneVerification(credential, l10n);
+  }
+
+  Future<void> _completeBackendPhoneVerification(
+    String verificationId,
+    String code,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      final phone = _normalizedTanzaniaPhone(_phoneCtrl.text);
+      final response = await _api.verifyPhone(
+        phone: phone,
+        verificationId: verificationId,
+        code: code,
+      );
+      final token = response['phoneVerificationIdToken']?.toString() ?? '';
+      if (token.isEmpty) {
+        throw Exception(l10n.phoneVerificationFailed);
+      }
+
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _phoneVerified = true;
+          _phoneCodeSent = true;
+          _phoneIdToken = token;
+          _phoneVerificationProvider =
+              response['provider']?.toString() ?? _phoneVerificationProvider;
+          _verifiedPhone = phone;
+          _status = l10n.phoneVerified;
+          _phoneVerificationLoading = false;
+          _phoneVerificationError = false;
+          _phoneVerificationMessage = l10n.phoneVerified;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final message = _messageForError(e, l10n);
+        setState(() {
+          _loading = false;
+          _phoneVerificationLoading = false;
+          _phoneVerificationError = true;
+          _phoneVerificationMessage = message;
+          _status = message;
+        });
+      }
+    }
   }
 
   Future<void> _completePhoneVerification(
@@ -597,6 +679,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _phoneVerified = true;
           _phoneCodeSent = true;
           _phoneIdToken = token;
+          _phoneVerificationProvider = 'firebase';
           _verifiedPhone = enteredPhone;
           _status = l10n.phoneVerified;
           _phoneVerificationLoading = false;

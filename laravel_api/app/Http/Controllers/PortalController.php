@@ -90,9 +90,12 @@ class PortalController extends Controller
         $totalTechnicians = Technician::count();
         $availableTechnicians = Technician::where('available', true)->count();
         $registrationFee = $settings->technicianRegistrationFee();
+        $smsProvider = $settings->smsProvider();
 
         return view('portal.index', [
             'registrationFee' => $registrationFee,
+            'smsProvider' => $smsProvider,
+            'smsProviderOptions' => $settings->smsProviderOptions(),
             'stats' => [
                 'clients' => User::where('role', 'client')->count(),
                 'technicians' => $totalTechnicians,
@@ -175,6 +178,20 @@ class PortalController extends Controller
         ]);
 
         return redirect()->route('dispatch')->with('status', 'Registration fee updated. New technician registrations and unpaid technicians will use it immediately.');
+    }
+
+    public function updateSmsProvider(Request $request, AppSettingsService $settings): RedirectResponse
+    {
+        $this->ensureAdmin();
+
+        $data = $request->validate([
+            'provider' => ['required', Rule::in(AppSettingsService::SMS_PROVIDERS)],
+        ]);
+
+        $provider = $settings->setSmsProvider((string) $data['provider']);
+        $label = $settings->smsProviderOptions()[$provider] ?? $provider;
+
+        return redirect()->route('dispatch')->with('status', "SMS/OTP provider updated to {$label}.");
     }
 
     public function updateTechnicianAvailability(Request $request, Technician $technician): RedirectResponse

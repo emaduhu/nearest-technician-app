@@ -48,6 +48,18 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID', env('FCM_PROJECT_ID')),
     ],
 
+    'sms' => [
+        'provider' => env('SMS_PROVIDER', 'firebase'),
+    ],
+
+    'beem' => [
+        'otp_request_url' => env('BEEM_OTP_REQUEST_URL', 'https://apiotp.beem.africa/v1/request'),
+        'otp_verify_url' => env('BEEM_OTP_VERIFY_URL', 'https://apiotp.beem.africa/v1/verify'),
+        'access_key' => env('BEEM_ACCESS_KEY'),
+        'secret_key' => env('BEEM_SECRET_KEY'),
+        'otp_app_id' => env('BEEM_OTP_APP_ID'),
+    ],
+
     'clickpesa' => [
         'base_url' => env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com/third-parties'),
         'client_id' => env('CLICKPESA_CLIENT_ID'),

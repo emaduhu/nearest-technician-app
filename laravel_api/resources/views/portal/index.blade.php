@@ -367,6 +367,21 @@
                         <button class="button primary" type="submit">Save registration fee</button>
                     </form>
                 </article>
+                <article class="panel">
+                    <h2>SMS/OTP provider</h2>
+                    <form method="post" action="{{ route('settings.sms-provider') }}" class="list">
+                        @csrf
+                        @method('patch')
+                        <label for="sms-provider">Active provider</label>
+                        <select id="sms-provider" name="provider">
+                            @foreach ($smsProviderOptions as $value => $label)
+                                <option value="{{ $value }}" @selected($smsProvider === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="helper">Firebase uses the mobile app client. Beem Africa uses backend OTP credentials.</p>
+                        <button class="button primary" type="submit">Save SMS provider</button>
+                    </form>
+                </article>
             @endif
 
             <article class="panel">

@@ -18,6 +18,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/users/{user}', [PortalController::class, 'destroyUser'])->name('users.destroy');
     Route::patch('/users/{user}/block', [PortalController::class, 'toggleUserBlock'])->name('users.block');
     Route::patch('/settings/registration-fee', [PortalController::class, 'updateRegistrationFee'])->name('settings.registration-fee');
+    Route::patch('/settings/sms-provider', [PortalController::class, 'updateSmsProvider'])->name('settings.sms-provider');
     Route::patch('/technicians/{technician}/registration-review', [PortalController::class, 'reviewTechnicianRegistration'])->name('technicians.registration-review');
     Route::patch('/technicians/{technician}/registration-review/unreject', [PortalController::class, 'unrejectTechnicianRegistration'])->name('technicians.registration-review.unreject');
     Route::patch('/technicians/{technician}/availability', [PortalController::class, 'updateTechnicianAvailability'])->name('technicians.availability');

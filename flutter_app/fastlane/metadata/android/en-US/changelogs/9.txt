@@ -1,0 +1,3 @@
+Added backend-controlled SMS/OTP provider selection.
+Added Beem Africa OTP support alongside Firebase phone verification.
+The app now follows the provider selected in the operations portal.

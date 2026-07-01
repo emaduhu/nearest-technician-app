@@ -74,6 +74,46 @@ class ApiService {
     });
   }
 
+  Future<Map<String, dynamic>> phoneVerificationProvider() async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.get(
+        Uri.parse('$serverUrl/api/phone-verification/provider'),
+        headers: _headers,
+      ));
+    });
+  }
+
+  Future<Map<String, dynamic>> sendPhoneVerification(String phone) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+        Uri.parse('$serverUrl/api/phone-verification/send'),
+        headers: _headers,
+        body: jsonEncode({'phone': phone}),
+      ));
+    });
+  }
+
+  Future<Map<String, dynamic>> verifyPhone({
+    required String phone,
+    required String verificationId,
+    required String code,
+  }) async {
+    return _withNetworkErrors(() async {
+      final client = await _client;
+      return _decode(await client.post(
+        Uri.parse('$serverUrl/api/phone-verification/verify'),
+        headers: _headers,
+        body: jsonEncode({
+          'phone': phone,
+          'verificationId': verificationId,
+          'code': code,
+        }),
+      ));
+    });
+  }
+
   Future<List<dynamic>> searchTechnicians({
     required String skill,
     required double lat,

@@ -1,0 +1,3 @@
+Tumeongeza chaguo la mtoa huduma wa SMS/OTP kutoka backend.
+Tumeongeza uthibitishaji wa Beem Africa pamoja na Firebase.
+App sasa inafuata mtoa huduma aliyechaguliwa kwenye portal ya uendeshaji.

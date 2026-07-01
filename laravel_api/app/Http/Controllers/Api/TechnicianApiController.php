@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\Technician;
 use App\Models\User;
+use App\Services\AppSettingsService;
+use App\Services\BeemAfricaOtpService;
 use App\Services\ClickPesaPaymentService;
 use App\Services\EmailVerificationService;
-use App\Services\FirebasePhoneAuthService;
 use App\Services\PasswordResetService;
+use App\Services\PhoneVerificationService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +30,9 @@ class TechnicianApiController extends Controller
         private readonly PushNotificationService $push,
         private readonly ClickPesaPaymentService $payments,
         private readonly EmailVerificationService $emailVerification,
-        private readonly FirebasePhoneAuthService $phoneAuth,
+        private readonly PhoneVerificationService $phoneVerification,
+        private readonly AppSettingsService $settings,
+        private readonly BeemAfricaOtpService $beemOtp,
     )
     {
     }
@@ -39,6 +43,7 @@ class TechnicianApiController extends Controller
             'ok' => true,
             'database' => config('database.default'),
             'firebasePush' => $this->push->configured(),
+            'smsProvider' => $this->settings->smsProvider(),
         ]);
     }
 
@@ -87,6 +92,7 @@ class TechnicianApiController extends Controller
             'faceImage' => ['required_if:role,technician', 'nullable', 'string'],
             'phone' => ['required', 'string', 'max:80'],
             'phoneVerificationIdToken' => ['required', 'string'],
+            'phoneVerificationProvider' => ['nullable', Rule::in(AppSettingsService::SMS_PROVIDERS)],
             'email' => ['required', 'email', 'max:255'],
             'emailVerificationCode' => ['required', 'string', 'size:6'],
             'password' => ['required', 'string', 'min:6'],
@@ -142,7 +148,11 @@ class TechnicianApiController extends Controller
             ], 422);
         }
 
-        $firebasePhone = $this->phoneAuth->verifyIdToken((string) $data['phoneVerificationIdToken'], $phone);
+        $verifiedPhone = $this->phoneVerification->verifyRegistrationToken(
+            (string) $data['phoneVerificationIdToken'],
+            $phone,
+            $data['phoneVerificationProvider'] ?? null,
+        );
         $this->emailVerification->assertVerified($email, (string) $data['emailVerificationCode']);
         $nidaIdImage = $data['role'] === 'technician'
             ? $this->validatedImageDataUri((string) ($data['nidaIdImage'] ?? ''), 'nidaIdImage')
@@ -159,7 +169,7 @@ class TechnicianApiController extends Controller
                 'nida' => $nida === '' ? $existingUser?->nida : $nida,
                 'phone' => $phone,
                 'phone_verified_at' => $existingUser?->phone_verified_at ?? now(),
-                'firebase_phone_uid' => $firebasePhone['uid'],
+                'firebase_phone_uid' => $verifiedPhone['uid'],
                 'email_verified_at' => $existingUser?->email_verified_at ?? now(),
                 'password' => $data['password'],
                 'device_token' => $deviceToken,
@@ -214,6 +224,9 @@ class TechnicianApiController extends Controller
             $payload['technician'] = $this->technicianDto($technician->fresh());
         }
 
+        if (($verifiedPhone['provider'] ?? null) === AppSettingsService::SMS_PROVIDER_BEEM) {
+            $this->phoneVerification->forgetLocalToken((string) $data['phoneVerificationIdToken']);
+        }
         $this->emailVerification->forget($email);
         $this->audit($request, 'auth.registered', [
             'actor_role' => $user->role,
@@ -226,11 +239,107 @@ class TechnicianApiController extends Controller
                 'email' => $email,
                 'nida' => $this->nidaHint($nida),
                 'phone' => $this->phoneHint($phone),
+                'phoneVerificationProvider' => $verifiedPhone['provider'],
                 'hasDeviceToken' => filled($deviceToken),
             ],
         ]);
 
         return response()->json($payload, 201);
+    }
+
+    public function phoneVerificationProvider(): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'provider' => $this->settings->smsProvider(),
+            'providers' => $this->settings->smsProviderOptions(),
+            'beemConfigured' => $this->beemOtp->configured(),
+        ]);
+    }
+
+    public function sendPhoneVerification(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'max:80'],
+        ]);
+
+        $phone = $this->normalizeTanzaniaPhone((string) $data['phone']);
+        if (! $this->isValidTanzaniaPhone($phone)) {
+            return response()->json([
+                'error' => 'Enter a valid Tanzania mobile phone number.',
+                'code' => 'invalid_phone',
+            ], 422);
+        }
+
+        $provider = $this->settings->smsProvider();
+        if ($provider === AppSettingsService::SMS_PROVIDER_FIREBASE) {
+            return response()->json([
+                'ok' => true,
+                'provider' => $provider,
+                'message' => 'Use Firebase phone authentication on the client.',
+            ]);
+        }
+
+        $result = $this->beemOtp->send($phone);
+        $this->audit($request, 'phone_verification.sent', [
+            'entity_type' => 'phone',
+            'entity_id' => $this->phoneHint($phone),
+            'metadata' => [
+                'provider' => $provider,
+                'phone' => $this->phoneHint($phone),
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'provider' => $provider,
+            'verificationId' => $result['pinId'],
+            'message' => 'A verification code has been sent by SMS to your phone.',
+        ]);
+    }
+
+    public function verifyPhone(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'max:80'],
+            'verificationId' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'size:6'],
+        ]);
+
+        $phone = $this->normalizeTanzaniaPhone((string) $data['phone']);
+        if (! $this->isValidTanzaniaPhone($phone)) {
+            return response()->json([
+                'error' => 'Enter a valid Tanzania mobile phone number.',
+                'code' => 'invalid_phone',
+            ], 422);
+        }
+
+        $provider = $this->settings->smsProvider();
+        if ($provider !== AppSettingsService::SMS_PROVIDER_BEEM) {
+            return response()->json([
+                'error' => 'Use Firebase phone authentication on the client.',
+                'code' => 'firebase_phone_auth_required',
+                'provider' => $provider,
+            ], 409);
+        }
+
+        $this->beemOtp->verify((string) $data['verificationId'], (string) $data['code']);
+        $token = $this->phoneVerification->issueLocalToken($phone, $provider);
+        $this->audit($request, 'phone_verification.verified', [
+            'entity_type' => 'phone',
+            'entity_id' => $this->phoneHint($phone),
+            'metadata' => [
+                'provider' => $provider,
+                'phone' => $this->phoneHint($phone),
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'provider' => $provider,
+            'phoneVerificationIdToken' => $token,
+            'message' => 'Phone verified successfully.',
+        ]);
     }
 
     public function sendEmailVerification(Request $request): JsonResponse
