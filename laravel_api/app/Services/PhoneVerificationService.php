@@ -30,7 +30,10 @@ class PhoneVerificationService
             ];
         }
 
-        if ($provider === AppSettingsService::SMS_PROVIDER_BEEM) {
+        if (in_array($provider, [
+            AppSettingsService::SMS_PROVIDER_BEEM,
+            AppSettingsService::SMS_PROVIDER_INFOBIP,
+        ], true)) {
             return $this->verifyLocalToken($token, $expectedPhone);
         }
 
@@ -76,7 +79,7 @@ class PhoneVerificationService
         }
 
         return [
-            'provider' => (string) ($payload['provider'] ?? AppSettingsService::SMS_PROVIDER_BEEM),
+            'provider' => (string) ($payload['provider'] ?? ''),
             'uid' => (string) ($payload['uid'] ?? ''),
             'phone' => $phone,
         ];

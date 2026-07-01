@@ -13,9 +13,11 @@ class AppSettingsService
     public const MIN_TECHNICIAN_REGISTRATION_FEE = 5000;
     public const SMS_PROVIDER_FIREBASE = 'firebase';
     public const SMS_PROVIDER_BEEM = 'beem_africa';
+    public const SMS_PROVIDER_INFOBIP = 'infobip';
     public const SMS_PROVIDERS = [
         self::SMS_PROVIDER_FIREBASE,
         self::SMS_PROVIDER_BEEM,
+        self::SMS_PROVIDER_INFOBIP,
     ];
 
     public function technicianRegistrationFee(): int
@@ -86,6 +88,7 @@ class AppSettingsService
         return [
             self::SMS_PROVIDER_FIREBASE => 'Firebase',
             self::SMS_PROVIDER_BEEM => 'Beem Africa',
+            self::SMS_PROVIDER_INFOBIP => 'Infobip',
         ];
     }
 

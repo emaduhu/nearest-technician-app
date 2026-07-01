@@ -10,6 +10,7 @@ use App\Services\AppSettingsService;
 use App\Services\BeemAfricaOtpService;
 use App\Services\ClickPesaPaymentService;
 use App\Services\EmailVerificationService;
+use App\Services\InfobipOtpService;
 use App\Services\PasswordResetService;
 use App\Services\PhoneVerificationService;
 use App\Services\PushNotificationService;
@@ -33,6 +34,7 @@ class TechnicianApiController extends Controller
         private readonly PhoneVerificationService $phoneVerification,
         private readonly AppSettingsService $settings,
         private readonly BeemAfricaOtpService $beemOtp,
+        private readonly InfobipOtpService $infobipOtp,
     )
     {
     }
@@ -44,6 +46,8 @@ class TechnicianApiController extends Controller
             'database' => config('database.default'),
             'firebasePush' => $this->push->configured(),
             'smsProvider' => $this->settings->smsProvider(),
+            'beemOtp' => $this->beemOtp->configured(),
+            'infobipOtp' => $this->infobipOtp->configured(),
         ]);
     }
 
@@ -224,7 +228,10 @@ class TechnicianApiController extends Controller
             $payload['technician'] = $this->technicianDto($technician->fresh());
         }
 
-        if (($verifiedPhone['provider'] ?? null) === AppSettingsService::SMS_PROVIDER_BEEM) {
+        if (in_array(($verifiedPhone['provider'] ?? null), [
+            AppSettingsService::SMS_PROVIDER_BEEM,
+            AppSettingsService::SMS_PROVIDER_INFOBIP,
+        ], true)) {
             $this->phoneVerification->forgetLocalToken((string) $data['phoneVerificationIdToken']);
         }
         $this->emailVerification->forget($email);
@@ -254,6 +261,7 @@ class TechnicianApiController extends Controller
             'provider' => $this->settings->smsProvider(),
             'providers' => $this->settings->smsProviderOptions(),
             'beemConfigured' => $this->beemOtp->configured(),
+            'infobipConfigured' => $this->infobipOtp->configured(),
         ]);
     }
 
@@ -280,7 +288,22 @@ class TechnicianApiController extends Controller
             ]);
         }
 
-        $result = $this->beemOtp->send($phone);
+        $result = match ($provider) {
+            AppSettingsService::SMS_PROVIDER_BEEM => [
+                'verificationId' => $this->beemOtp->send($phone)['pinId'],
+            ],
+            AppSettingsService::SMS_PROVIDER_INFOBIP => [
+                'verificationId' => $this->infobipOtp->send($phone)['verificationId'],
+            ],
+            default => null,
+        };
+        if ($result === null) {
+            return response()->json([
+                'error' => 'Unsupported SMS provider.',
+                'code' => 'unsupported_sms_provider',
+                'provider' => $provider,
+            ], 422);
+        }
         $this->audit($request, 'phone_verification.sent', [
             'entity_type' => 'phone',
             'entity_id' => $this->phoneHint($phone),
@@ -293,7 +316,7 @@ class TechnicianApiController extends Controller
         return response()->json([
             'ok' => true,
             'provider' => $provider,
-            'verificationId' => $result['pinId'],
+            'verificationId' => $result['verificationId'],
             'message' => 'A verification code has been sent by SMS to your phone.',
         ]);
     }
@@ -315,7 +338,7 @@ class TechnicianApiController extends Controller
         }
 
         $provider = $this->settings->smsProvider();
-        if ($provider !== AppSettingsService::SMS_PROVIDER_BEEM) {
+        if ($provider === AppSettingsService::SMS_PROVIDER_FIREBASE) {
             return response()->json([
                 'error' => 'Use Firebase phone authentication on the client.',
                 'code' => 'firebase_phone_auth_required',
@@ -323,7 +346,18 @@ class TechnicianApiController extends Controller
             ], 409);
         }
 
-        $this->beemOtp->verify((string) $data['verificationId'], (string) $data['code']);
+        if ($provider === AppSettingsService::SMS_PROVIDER_BEEM) {
+            $this->beemOtp->verify((string) $data['verificationId'], (string) $data['code']);
+        } elseif ($provider === AppSettingsService::SMS_PROVIDER_INFOBIP) {
+            $this->infobipOtp->verify((string) $data['verificationId'], (string) $data['code'], $phone);
+        } else {
+            return response()->json([
+                'error' => 'Unsupported SMS provider.',
+                'code' => 'unsupported_sms_provider',
+                'provider' => $provider,
+            ], 422);
+        }
+
         $token = $this->phoneVerification->issueLocalToken($phone, $provider);
         $this->audit($request, 'phone_verification.verified', [
             'entity_type' => 'phone',

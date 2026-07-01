@@ -60,6 +60,14 @@ return [
         'otp_app_id' => env('BEEM_OTP_APP_ID'),
     ],
 
+    'infobip' => [
+        'base_url' => env('INFOBIP_BASE_URL'),
+        'api_key' => env('INFOBIP_API_KEY'),
+        'sender' => env('INFOBIP_SENDER', 'InfoSMS'),
+        'otp_ttl_minutes' => (int) env('INFOBIP_OTP_TTL_MINUTES', 10),
+        'otp_message' => env('INFOBIP_OTP_MESSAGE', 'Your Nearest Technician verification code is :code'),
+    ],
+
     'clickpesa' => [
         'base_url' => env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com/third-parties'),
         'client_id' => env('CLICKPESA_CLIENT_ID'),

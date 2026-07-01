@@ -124,6 +124,11 @@ BEEM_SECRET_KEY=
 BEEM_OTP_APP_ID=
 BEEM_OTP_REQUEST_URL=https://apiotp.beem.africa/v1/request
 BEEM_OTP_VERIFY_URL=https://apiotp.beem.africa/v1/verify
+INFOBIP_BASE_URL=
+INFOBIP_API_KEY=
+INFOBIP_SENDER=InfoSMS
+INFOBIP_OTP_TTL_MINUTES=10
+INFOBIP_OTP_MESSAGE="Your Nearest Technician verification code is :code"
 CLICKPESA_CLIENT_ID=your-clickpesa-client-id
 CLICKPESA_API_KEY=your-clickpesa-api-key
 CLICKPESA_CURRENCY=TZS
@@ -132,7 +137,7 @@ CLICKPESA_TECHNICIAN_REGISTRATION_FEE=5000
 
 Technician registration triggers a ClickPesa USSD push for the configured registration fee. The technician phone number must be a mobile-money number; local numbers such as `0712345678` are normalized to `255712345678` before sending to ClickPesa.
 
-SMS/OTP verification is selected from the admin portal. Firebase uses the mobile app client configuration. Beem Africa uses the backend `BEEM_*` OTP credentials and returns a backend-issued phone verification token to the app after the PIN is verified.
+SMS/OTP verification is selected from the admin portal. Firebase uses the mobile app client configuration. Beem Africa uses the backend `BEEM_*` OTP credentials. Infobip uses the backend `INFOBIP_*` SMS credentials with a backend-generated OTP. Server-side providers return a backend-issued phone verification token to the app after the PIN is verified.
 
 Install and start:
 

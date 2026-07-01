@@ -447,7 +447,7 @@ class _RegisterPageState extends State<RegisterPage> {
           providerResponse['provider']?.toString().trim() ?? 'firebase';
       _phoneVerificationProvider = provider;
 
-      if (provider == 'beem_africa') {
+      if (provider != 'firebase') {
         await _sendBackendPhoneCode(phone, l10n);
         return;
       }
@@ -596,7 +596,8 @@ class _RegisterPageState extends State<RegisterPage> {
       _phoneVerificationMessage = l10n.verifyPhone;
     });
 
-    if (_phoneVerificationProvider == 'beem_africa') {
+    if (_phoneVerificationProvider != null &&
+        _phoneVerificationProvider != 'firebase') {
       await _completeBackendPhoneVerification(verificationId, code, l10n);
       return;
     }

@@ -1,0 +1,3 @@
+Added Infobip as a backend SMS/OTP provider.
+The app now follows Firebase, Beem Africa, or Infobip from the portal setting.
+Improved backend OTP configuration documentation.

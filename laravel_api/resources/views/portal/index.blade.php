@@ -378,7 +378,7 @@
                                 <option value="{{ $value }}" @selected($smsProvider === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
-                        <p class="helper">Firebase uses the mobile app client. Beem Africa uses backend OTP credentials.</p>
+                        <p class="helper">Firebase uses the mobile app client. Beem Africa and Infobip use backend OTP credentials.</p>
                         <button class="button primary" type="submit">Save SMS provider</button>
                     </form>
                 </article>
