@@ -32,11 +32,13 @@ class InfobipOtpService
                 ->timeout(15)
                 ->post($this->endpoint(), [
                     'messages' => [[
-                        'from' => $this->sender(),
                         'destinations' => [[
                             'to' => $normalizedPhone,
                         ]],
-                        'text' => $this->message($pin),
+                        'sender' => $this->sender(),
+                        'content' => [
+                            'text' => $this->message($pin),
+                        ],
                     ]],
                 ]);
 
