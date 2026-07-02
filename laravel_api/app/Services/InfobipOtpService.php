@@ -47,6 +47,8 @@ class InfobipOtpService
                 throw new RuntimeException($this->failureMessage($body, $response->body()));
             }
 
+            $this->throwIfImmediatelyRejected($body);
+
             Cache::put($this->cacheKey($verificationId), [
                 'phone' => $normalizedPhone,
                 'pin_hash' => hash('sha256', $pin),
@@ -101,6 +103,11 @@ class InfobipOtpService
     private function endpoint(): string
     {
         return rtrim($this->baseUrl(), '/').'/sms/3/messages';
+    }
+
+    private function logsEndpoint(): string
+    {
+        return rtrim($this->baseUrl(), '/').'/sms/3/logs';
     }
 
     private function baseUrl(): string
@@ -173,9 +180,64 @@ class InfobipOtpService
         return $rawBody !== '' ? $rawBody : 'Infobip SMS request failed.';
     }
 
+    /**
+     * @param array<string, mixed> $sendResponse
+     */
+    private function throwIfImmediatelyRejected(array $sendResponse): void
+    {
+        $messageId = (string) data_get($sendResponse, 'messages.0.messageId', '');
+        if ($messageId === '') {
+            return;
+        }
+
+        try {
+            usleep(500000);
+            $response = Http::acceptJson()
+                ->withHeaders([
+                    'Authorization' => $this->authorizationHeader(),
+                ])
+                ->timeout(10)
+                ->get($this->logsEndpoint(), [
+                    'messageId' => $messageId,
+                    'limit' => 1,
+                ]);
+
+            $body = $response->json();
+            if ($response->failed() || ! is_array($body)) {
+                return;
+            }
+
+            $result = data_get($body, 'results.0');
+            if (! is_array($result)) {
+                return;
+            }
+
+            $statusGroup = strtolower((string) data_get($result, 'status.groupName', ''));
+            $errorId = (int) data_get($result, 'error.id', 0);
+            $errorName = (string) data_get($result, 'error.name', '');
+            $errorDescription = (string) data_get($result, 'error.description', '');
+            if (in_array($statusGroup, ['rejected', 'undeliverable', 'expired'], true) || $errorId !== 0) {
+                throw new RuntimeException(trim("{$errorName} {$errorDescription}"));
+            }
+        } catch (RuntimeException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            Log::info('Infobip immediate delivery log lookup failed.', [
+                'message' => $exception->getMessage(),
+                'message_id' => $messageId,
+            ]);
+        }
+    }
+
     private function publicFailureMessage(string $message): string
     {
         $lower = strtolower($message);
+        if (str_contains($lower, 'not in whitelist') || str_contains($lower, 'not in sms demo')) {
+            return 'Infobip rejected this phone number because it is not registered in the SMS demo whitelist. Add the number in Infobip or upgrade the account.';
+        }
+        if (str_contains($lower, 'destination_not_registered')) {
+            return 'Infobip rejected this destination number. Add it to the Infobip demo whitelist or use a live Infobip account.';
+        }
         if (str_contains($lower, 'e401') || str_contains($lower, 'authentication')) {
             return 'Infobip rejected the SMS credentials. Check INFOBIP_BASE_URL and INFOBIP_API_KEY.';
         }
