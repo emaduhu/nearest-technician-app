@@ -363,7 +363,7 @@ class TechnicianApiController extends Controller
         }
 
         if ($provider === AppSettingsService::SMS_PROVIDER_BEEM) {
-            $this->beemOtp->verify((string) $data['verificationId'], (string) $data['code']);
+            $this->beemOtp->verify((string) $data['verificationId'], (string) $data['code'], $phone);
         } elseif ($provider === AppSettingsService::SMS_PROVIDER_INFOBIP) {
             $this->infobipOtp->verify((string) $data['verificationId'], (string) $data['code'], $phone);
         } else {

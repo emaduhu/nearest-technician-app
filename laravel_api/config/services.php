@@ -53,6 +53,8 @@ return [
     ],
 
     'beem' => [
+        'sms_url' => env('BEEM_SMS_URL', 'https://apisms.beem.africa/v1/send'),
+        'sender' => env('BEEM_SENDER', 'INFO'),
         'otp_request_url' => env('BEEM_OTP_REQUEST_URL', 'https://apiotp.beem.africa/v1/request'),
         'otp_verify_url' => env('BEEM_OTP_VERIFY_URL', 'https://apiotp.beem.africa/v1/verify'),
         'access_key' => env('BEEM_ACCESS_KEY'),
