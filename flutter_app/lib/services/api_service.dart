@@ -294,11 +294,7 @@ class ApiService {
   Future<dynamic> _decodeAny(http.Response res) async {
     final dynamic body = _tryDecode(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      final message = body is Map && body['error'] != null
-          ? body['error'].toString()
-          : body is Map && body['message'] != null
-              ? body['message'].toString()
-              : 'HTTP ${res.statusCode}';
+      final message = _errorMessage(body, res.statusCode);
       throw ApiException(
         message,
         res.statusCode,
@@ -309,6 +305,26 @@ class ApiService {
       throw Exception('Server returned an invalid response');
     }
     return body;
+  }
+
+  String _errorMessage(dynamic body, int statusCode) {
+    if (body is Map) {
+      final errors = body['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        for (final value in errors.values) {
+          if (value is List && value.isNotEmpty) {
+            return value.first.toString();
+          }
+          if (value != null) {
+            return value.toString();
+          }
+        }
+      }
+      if (body['error'] != null) return body['error'].toString();
+      if (body['message'] != null) return body['message'].toString();
+    }
+
+    return 'HTTP $statusCode';
   }
 
   dynamic _tryDecode(String body) {

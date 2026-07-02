@@ -288,6 +288,22 @@ class TechnicianApiController extends Controller
             ]);
         }
 
+        if ($provider === AppSettingsService::SMS_PROVIDER_BEEM && ! $this->beemOtp->configured()) {
+            return response()->json([
+                'error' => 'Beem Africa OTP is not configured. Check BEEM_ACCESS_KEY, BEEM_SECRET_KEY, and BEEM_OTP_APP_ID.',
+                'code' => 'sms_provider_not_configured',
+                'provider' => $provider,
+            ], 503);
+        }
+
+        if ($provider === AppSettingsService::SMS_PROVIDER_INFOBIP && ! $this->infobipOtp->configured()) {
+            return response()->json([
+                'error' => 'Infobip OTP is not configured. Check INFOBIP_BASE_URL, INFOBIP_API_KEY, and INFOBIP_SENDER.',
+                'code' => 'sms_provider_not_configured',
+                'provider' => $provider,
+            ], 503);
+        }
+
         $result = match ($provider) {
             AppSettingsService::SMS_PROVIDER_BEEM => [
                 'verificationId' => $this->beemOtp->send($phone)['pinId'],

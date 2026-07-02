@@ -27,24 +27,22 @@ class InfobipOtpService
             $response = Http::acceptJson()
                 ->asJson()
                 ->withHeaders([
-                    'Authorization' => 'App '.$this->apiKey(),
+                    'Authorization' => $this->authorizationHeader(),
                 ])
                 ->timeout(15)
                 ->post($this->endpoint(), [
                     'messages' => [[
-                        'sender' => $this->sender(),
+                        'from' => $this->sender(),
                         'destinations' => [[
                             'to' => $normalizedPhone,
                         ]],
-                        'content' => [
-                            'text' => $this->message($pin),
-                        ],
+                        'text' => $this->message($pin),
                     ]],
                 ]);
 
             $body = $response->json();
             if ($response->failed() || ! is_array($body)) {
-                throw new RuntimeException($response->body() ?: 'Infobip SMS request failed.');
+                throw new RuntimeException($this->failureMessage($body, $response->body()));
             }
 
             Cache::put($this->cacheKey($verificationId), [
@@ -60,7 +58,7 @@ class InfobipOtpService
             ]);
 
             throw ValidationException::withMessages([
-                'phone' => ['We could not send the phone verification code. Please try again.'],
+                'phone' => [$this->publicFailureMessage($exception->getMessage())],
             ]);
         }
     }
@@ -105,17 +103,27 @@ class InfobipOtpService
 
     private function baseUrl(): string
     {
-        return (string) config('services.infobip.base_url', '');
+        return trim((string) config('services.infobip.base_url', ''));
     }
 
     private function apiKey(): string
     {
-        return (string) config('services.infobip.api_key', '');
+        return trim((string) config('services.infobip.api_key', ''));
+    }
+
+    private function authorizationHeader(): string
+    {
+        $apiKey = $this->apiKey();
+        if (preg_match('/^(App|Bearer|Basic)\s+/i', $apiKey)) {
+            return $apiKey;
+        }
+
+        return 'App '.$apiKey;
     }
 
     private function sender(): string
     {
-        return (string) config('services.infobip.sender', 'InfoSMS');
+        return trim((string) config('services.infobip.sender', 'InfoSMS'));
     }
 
     private function ttlMinutes(): int
@@ -147,5 +155,32 @@ class InfobipOtpService
         return strlen($digits) <= 5
             ? $digits
             : substr($digits, 0, 4).'***'.substr($digits, -2);
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function failureMessage(?array $body, string $rawBody): string
+    {
+        $errorCode = (string) data_get($body, 'errorCode', '');
+        $description = (string) data_get($body, 'description', '');
+        if ($errorCode !== '' || $description !== '') {
+            return trim("{$errorCode} {$description}");
+        }
+
+        return $rawBody !== '' ? $rawBody : 'Infobip SMS request failed.';
+    }
+
+    private function publicFailureMessage(string $message): string
+    {
+        $lower = strtolower($message);
+        if (str_contains($lower, 'e401') || str_contains($lower, 'authentication')) {
+            return 'Infobip rejected the SMS credentials. Check INFOBIP_BASE_URL and INFOBIP_API_KEY.';
+        }
+        if (str_contains($lower, 'sender')) {
+            return 'Infobip rejected the sender name. Check INFOBIP_SENDER.';
+        }
+
+        return 'Infobip could not send the phone verification code. Please try again.';
     }
 }

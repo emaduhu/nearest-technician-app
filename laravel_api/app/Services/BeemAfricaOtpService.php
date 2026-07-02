@@ -46,7 +46,7 @@ class BeemAfricaOtpService
             ]);
 
             throw ValidationException::withMessages([
-                'phone' => ['We could not send the phone verification code. Please try again.'],
+                'phone' => [$this->publicFailureMessage($exception->getMessage())],
             ]);
         }
     }
@@ -105,12 +105,12 @@ class BeemAfricaOtpService
 
     private function accessKey(): string
     {
-        return (string) config('services.beem.access_key', '');
+        return trim((string) config('services.beem.access_key', ''));
     }
 
     private function secretKey(): string
     {
-        return (string) config('services.beem.secret_key', '');
+        return trim((string) config('services.beem.secret_key', ''));
     }
 
     private function appId(): int
@@ -130,5 +130,15 @@ class BeemAfricaOtpService
         return strlen($digits) <= 5
             ? $digits
             : substr($digits, 0, 4).'***'.substr($digits, -2);
+    }
+
+    private function publicFailureMessage(string $message): string
+    {
+        $lower = strtolower($message);
+        if (str_contains($lower, 'auth') || str_contains($lower, 'credential') || str_contains($lower, 'unauthorized')) {
+            return 'Beem Africa rejected the OTP credentials. Check BEEM_ACCESS_KEY, BEEM_SECRET_KEY, and BEEM_OTP_APP_ID.';
+        }
+
+        return 'Beem Africa could not send the phone verification code. Please try again.';
     }
 }

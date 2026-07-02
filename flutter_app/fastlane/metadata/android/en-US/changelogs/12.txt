@@ -1,0 +1,3 @@
+Fixed backend SMS/OTP provider error handling.
+Improved Infobip OTP delivery compatibility.
+The app now shows clearer provider configuration messages.
