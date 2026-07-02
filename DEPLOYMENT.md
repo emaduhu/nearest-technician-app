@@ -118,14 +118,11 @@ MAIL_PASSWORD=your-mailbox-password
 MAIL_FROM_ADDRESS=support@nt.vigourtech.net
 MAIL_FROM_NAME="${APP_NAME}"
 FCM_SERVER_KEY=
-SMS_PROVIDER=firebase
+SMS_PROVIDER=beem_africa
 BEEM_SMS_URL=https://apisms.beem.africa/v1/send
 BEEM_SENDER=INFO
 BEEM_ACCESS_KEY=
 BEEM_SECRET_KEY=
-BEEM_OTP_APP_ID=
-BEEM_OTP_REQUEST_URL=https://apiotp.beem.africa/v1/request
-BEEM_OTP_VERIFY_URL=https://apiotp.beem.africa/v1/verify
 INFOBIP_BASE_URL=https://2y1rrm.api.infobip.com
 INFOBIP_API_KEY=
 INFOBIP_SENDER=ServiceSMS
@@ -139,7 +136,7 @@ CLICKPESA_TECHNICIAN_REGISTRATION_FEE=5000
 
 Technician registration triggers a ClickPesa USSD push for the configured registration fee. The technician phone number must be a mobile-money number; local numbers such as `0712345678` are normalized to `255712345678` before sending to ClickPesa.
 
-SMS/OTP verification is selected from the admin portal. Firebase uses the mobile app client configuration. Beem Africa uses the backend `BEEM_*` OTP credentials. Infobip uses the backend `INFOBIP_*` SMS credentials with a backend-generated OTP. Server-side providers return a backend-issued phone verification token to the app after the PIN is verified.
+SMS/OTP verification is selected from the admin portal. Firebase uses the mobile app client configuration. Beem Africa uses backend-generated OTP codes delivered through the Beem SMS API (`BEEM_SMS_URL`, `BEEM_SENDER`, `BEEM_ACCESS_KEY`, and `BEEM_SECRET_KEY`). Infobip uses the backend `INFOBIP_*` SMS credentials with a backend-generated OTP. Server-side providers return a backend-issued phone verification token to the app after the PIN is verified. If the `app_settings` table already contains `sms_provider`, switch it to Beem Africa in the admin portal for SMS API testing; that database setting takes precedence over `SMS_PROVIDER`.
 
 Install and start:
 

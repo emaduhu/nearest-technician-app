@@ -290,7 +290,7 @@ class TechnicianApiController extends Controller
 
         if ($provider === AppSettingsService::SMS_PROVIDER_BEEM && ! $this->beemOtp->configured()) {
             return response()->json([
-                'error' => 'Beem Africa OTP is not configured. Check BEEM_ACCESS_KEY, BEEM_SECRET_KEY, and BEEM_OTP_APP_ID.',
+                'error' => 'Beem Africa SMS is not configured. Check BEEM_ACCESS_KEY, BEEM_SECRET_KEY, and BEEM_SENDER.',
                 'code' => 'sms_provider_not_configured',
                 'provider' => $provider,
             ], 503);
