@@ -1,0 +1,3 @@
+Updated production phone verification setup for Firebase reCAPTCHA SMS Defense.
+Improved SMS verification reliability checks for Play-installed builds.
+Includes backend SMS/OTP provider configuration improvements from recent releases.

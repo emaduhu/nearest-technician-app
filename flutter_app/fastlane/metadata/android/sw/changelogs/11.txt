@@ -1,0 +1,3 @@
+Tumesasisha usanidi wa uthibitishaji wa simu wa production kwa Firebase reCAPTCHA SMS Defense.
+Tumeboresha ukaguzi wa uimara wa uthibitishaji wa SMS kwa app iliyosakinishwa kupitia Play.
+Toleo hili linajumuisha maboresho ya usanidi wa watoa huduma wa SMS/OTP kutoka backend.
