@@ -1,0 +1,7 @@
+Nearest Technician helps clients find available technicians near their location and request service when they need help. Search by skill, distance, rating, and availability, then send a job request with a short description of the problem.
+
+Clients can create an account, verify contact details, view matching technicians, send requests, track request status, rate completed work, and report issues when needed. Location support helps connect clients with technicians nearby so service can start faster.
+
+Technicians can register, submit identity details for review, manage availability, receive service requests, accept or decline jobs, update their location, and keep track of client requests from one dashboard.
+
+The app is designed for everyday repair and service needs such as electrical, plumbing, appliance, mechanical, and other field work. It keeps the workflow simple for both sides: clients describe the issue, technicians respond, and everyone can follow the request from search to completion.
