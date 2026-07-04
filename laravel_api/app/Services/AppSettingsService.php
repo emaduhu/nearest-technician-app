@@ -34,7 +34,7 @@ class AppSettingsService
     {
         $amount = max($amount, self::MIN_TECHNICIAN_REGISTRATION_FEE);
 
-        if (! Schema::hasTable('app_settings')) {
+        if (! $this->settingsTableExists()) {
             return $amount;
         }
 
@@ -71,7 +71,7 @@ class AppSettingsService
             ? $provider
             : self::SMS_PROVIDER_FIREBASE;
 
-        if (! Schema::hasTable('app_settings')) {
+        if (! $this->settingsTableExists()) {
             return $provider;
         }
 
@@ -94,7 +94,7 @@ class AppSettingsService
 
     private function integer(string $key, int $default): int
     {
-        if (! Schema::hasTable('app_settings')) {
+        if (! $this->settingsTableExists()) {
             return $default;
         }
 
@@ -111,7 +111,7 @@ class AppSettingsService
 
     private function string(string $key, string $default): string
     {
-        if (! Schema::hasTable('app_settings')) {
+        if (! $this->settingsTableExists()) {
             return $default;
         }
 
@@ -126,6 +126,15 @@ class AppSettingsService
         $value = is_string($value) ? trim($value) : '';
 
         return $value !== '' ? $value : $default;
+    }
+
+    private function settingsTableExists(): bool
+    {
+        try {
+            return Schema::hasTable('app_settings');
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function set(string $key, string $value): void
