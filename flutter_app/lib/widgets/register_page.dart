@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import '../l10n/app_localizations.dart';
 import '../services/fcm_service.dart';
@@ -52,6 +53,8 @@ class _RegisterPageState extends State<RegisterPage> {
       minFaceSize: 0.15,
     ),
   );
+  final TextRecognizer _textRecognizer =
+      TextRecognizer(script: TextRecognitionScript.latin);
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _nidaCtrl = TextEditingController();
@@ -786,6 +789,12 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       }
 
+      String? detectedNida;
+      if (type == _RegistrationPhotoType.nidaCard) {
+        setState(() => _status = l10n.detectingNida);
+        detectedNida = await _detectNidaNumber(file.path);
+      }
+
       final bytes = await file.readAsBytes();
       final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       if (mounted) {
@@ -793,7 +802,12 @@ class _RegisterPageState extends State<RegisterPage> {
           if (type == _RegistrationPhotoType.nidaCard) {
             _nidaCardImageData = dataUri;
             _nidaCardPreview = bytes;
-            _status = l10n.nidaImageCaptured;
+            if (detectedNida != null) {
+              _nidaCtrl.text = _formattedNida(detectedNida);
+              _status = l10n.nidaAutoDetected;
+            } else {
+              _status = l10n.nidaImageCapturedNoAutoDetect;
+            }
           } else {
             _faceImageData = dataUri;
             _facePreview = bytes;
@@ -816,6 +830,19 @@ class _RegisterPageState extends State<RegisterPage> {
     final faces =
         await _faceDetector.processImage(InputImage.fromFilePath(imagePath));
     return faces.length;
+  }
+
+  Future<String?> _detectNidaNumber(String imagePath) async {
+    if (kIsWeb) {
+      return null;
+    }
+
+    final recognizedText =
+        await _textRecognizer.processImage(InputImage.fromFilePath(imagePath));
+    final digits = recognizedText.text.replaceAll(RegExp(r'\D+'), '');
+    final match = RegExp(r'\d{20}').firstMatch(digits);
+
+    return match?.group(0);
   }
 
   String _phoneCodeSentMessage(
@@ -1004,6 +1031,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _smsCodeCtrl.dispose();
     _emailCodeCtrl.dispose();
     _faceDetector.close();
+    _textRecognizer.close();
     super.dispose();
   }
 

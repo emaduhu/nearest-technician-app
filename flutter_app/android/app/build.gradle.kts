@@ -61,4 +61,11 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+}
+
 apply(plugin = "com.google.gms.google-services") // ✅ Kotlin DSL way

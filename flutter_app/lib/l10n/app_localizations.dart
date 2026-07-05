@@ -44,8 +44,16 @@ class AppLocalizations {
   String get nidaCardPhoto =>
       isSwahili ? 'Picha ya kitambulisho cha NIDA' : 'NIDA ID photo';
   String get nidaCardPhotoHint => isSwahili
-      ? 'Piga picha ya kitambulisho chote kama kilivyo. Kona zote nne zionekane.'
-      : 'Capture the full ID exactly as it is. All four corners must be visible.';
+      ? 'Piga picha ya kitambulisho chote. App itajaribu kutambua NIDA kiotomatiki.'
+      : 'Capture the full ID. The app will try to auto-detect the NIDA number.';
+  String get detectingNida =>
+      isSwahili ? 'Inatambua NIDA...' : 'Detecting NIDA number...';
+  String get nidaAutoDetected => isSwahili
+      ? 'Picha ya NIDA imechukuliwa na namba imejazwa kiotomatiki'
+      : 'NIDA photo captured and number filled automatically';
+  String get nidaImageCapturedNoAutoDetect => isSwahili
+      ? 'Picha ya NIDA imechukuliwa. Hakiki au weka namba ya NIDA.'
+      : 'NIDA photo captured. Review or enter the NIDA number.';
   String get facePhoto => isSwahili ? 'Picha ya uso' : 'Face photo';
   String get facePhotoHint => isSwahili
       ? 'Piga picha ya uso wako wazi. App itatambua uso kiotomatiki.'
