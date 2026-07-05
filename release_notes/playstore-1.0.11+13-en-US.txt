@@ -1,0 +1,6 @@
+Version 1.0.11 (13)
+
+- Added approved sample technician and client accounts for testing.
+- Improved verification onboarding with clearer ID, face, OTP, and terms steps.
+- Refreshed Play Store and App Store screenshots with larger readable forms.
+- Updated store asset workflow documentation for repeatable future releases.

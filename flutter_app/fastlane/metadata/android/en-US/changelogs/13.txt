@@ -1,0 +1,3 @@
+Added approved sample technician and client accounts for testing.
+Improved verification onboarding with clearer ID, face, OTP, and terms steps.
+Refreshed Play Store and App Store screenshots with larger readable forms.
