@@ -60,6 +60,9 @@ class AppLocalizations {
       : 'Capture a clear face photo. The app will auto-detect your face.';
   String get detectingFace =>
       isSwahili ? 'Inatambua uso...' : 'Detecting face...';
+  String get faceDetectionOn =>
+      isSwahili ? 'Utambuzi wa uso upo' : 'Face detection on';
+  String get faceDetected => isSwahili ? 'Uso umetambuliwa' : 'Face detected';
   String get faceNotDetected => isSwahili
       ? 'Uso haujatambuliwa. Piga picha tena ukiangalia kamera vizuri.'
       : 'No face was detected. Retake the photo while looking clearly at the camera.';

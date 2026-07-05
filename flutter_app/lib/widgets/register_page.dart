@@ -1276,6 +1276,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                   buttonLabel: _facePreview == null
                                       ? l10n.captureFace
                                       : l10n.retakeFace,
+                                  statusLabel: _facePreview == null
+                                      ? l10n.faceDetectionOn
+                                      : l10n.faceDetected,
                                 ),
                                 const SizedBox(height: 12),
                                 _VerificationNotice(
@@ -1628,6 +1631,7 @@ class _CaptureCard extends StatelessWidget {
   final String title;
   final String helper;
   final String buttonLabel;
+  final String? statusLabel;
   final IconData icon;
   final Uint8List? imageBytes;
   final VoidCallback? onPressed;
@@ -1636,6 +1640,7 @@ class _CaptureCard extends StatelessWidget {
     required this.title,
     required this.helper,
     required this.buttonLabel,
+    this.statusLabel,
     required this.icon,
     required this.imageBytes,
     required this.onPressed,
@@ -1689,45 +1694,127 @@ class _CaptureCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _CaptureIconButton(
+                onPressed: onPressed,
+                tooltip: buttonLabel,
+              ),
             ],
           ),
           const SizedBox(height: 10),
+          if (statusLabel != null) ...[
+            _DetectionBadge(
+              label: statusLabel!,
+              detected: imageBytes != null,
+            ),
+            const SizedBox(height: 10),
+          ],
           AspectRatio(
             aspectRatio: 16 / 9,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white,
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: onPressed,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: imageBytes == null
-                      ? const Color(0xFFDCE4E8)
-                      : const Color(0xFF99F6E4),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: imageBytes == null
+                          ? const Color(0xFFDCE4E8)
+                          : const Color(0xFF99F6E4),
+                    ),
+                  ),
+                  child: imageBytes == null
+                      ? Center(
+                          child: Icon(
+                            Icons.photo_camera_outlined,
+                            color: color.primary,
+                            size: 34,
+                          ),
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: Image.memory(imageBytes!, fit: BoxFit.cover),
+                        ),
                 ),
               ),
-              child: imageBytes == null
-                  ? Center(
-                      child: Icon(
-                        Icons.add_a_photo_outlined,
-                        color: color.primary,
-                        size: 34,
-                      ),
-                    )
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: Image.memory(imageBytes!, fit: BoxFit.cover),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _TinyActionButton(
-              onPressed: onPressed,
-              icon: Icons.photo_camera_outlined,
-              label: buttonLabel,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CaptureIconButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final String tooltip;
+
+  const _CaptureIconButton({
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton.filledTonal(
+        onPressed: onPressed,
+        icon: const Icon(Icons.photo_camera_outlined),
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+      ),
+    );
+  }
+}
+
+class _DetectionBadge extends StatelessWidget {
+  final String label;
+  final bool detected;
+
+  const _DetectionBadge({
+    required this.label,
+    required this.detected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = detected ? const Color(0xFF0F766E) : const Color(0xFF475569);
+    final background =
+        detected ? const Color(0xFFE7F7F3) : const Color(0xFFF1F5F9);
+    final border = detected ? const Color(0xFF99F6E4) : const Color(0xFFDCE4E8);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              detected
+                  ? Icons.verified_outlined
+                  : Icons.face_retouching_natural,
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: color, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
     );
   }
