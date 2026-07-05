@@ -12,18 +12,27 @@ Generated brand exports:
 Google Play assets:
 - `store_assets/play_store/app-icon-512.png`
 - `store_assets/play_store/feature-graphic-1024x500.png`
-- `store_assets/play_store/screenshots/phone-01-client-search.png`
-- `store_assets/play_store/screenshots/phone-02-technician-jobs.png`
-- `store_assets/play_store/screenshots/phone-03-operations.png`
+- `store_assets/play_store/screenshots/phone/*.png`
+- `store_assets/play_store/screenshots/tablet/*.png`
 
-App Store asset:
+App Store assets:
 - `store_assets/app_store/app-icon-1024.png`
+- `store_assets/app_store/screenshots/iphone-6.9/*.png`
+- `store_assets/app_store/screenshots/ipad-13/*.png`
 
 Regenerate all app and store images:
 
 ```bash
 python3 tools/generate_deployment_assets.py
 ```
+
+Regenerate store screenshots from real captured app screenshots:
+
+```bash
+python3 tools/create_store_assets_from_screenshots.py
+```
+
+The reusable screenshot composition method is documented in `docs/store-asset-screenshot-workflow.md`.
 
 ## Android
 
