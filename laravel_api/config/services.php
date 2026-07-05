@@ -54,9 +54,14 @@ return [
 
     'beem' => [
         'sms_url' => env('BEEM_SMS_URL', 'https://apisms.beem.africa/v1/send'),
+        'otp_request_url' => env('BEEM_OTP_REQUEST_URL', 'https://apiotp.beem.africa/v1/request'),
+        'otp_verify_url' => env('BEEM_OTP_VERIFY_URL', 'https://apiotp.beem.africa/v1/verify'),
+        'otp_app_id' => env('BEEM_OTP_APP_ID'),
         'sender' => env('BEEM_SENDER', 'INFO'),
         'access_key' => env('BEEM_ACCESS_KEY'),
         'secret_key' => env('BEEM_SECRET_KEY'),
+        'otp_ttl_minutes' => (int) env('BEEM_OTP_TTL_MINUTES', 10),
+        'otp_message' => env('BEEM_OTP_MESSAGE', 'Your Nearest Technician verification code is :code. It expires in :minutes minutes.'),
     ],
 
     'infobip' => [
@@ -64,7 +69,7 @@ return [
         'api_key' => env('INFOBIP_API_KEY'),
         'sender' => env('INFOBIP_SENDER', 'InfoSMS'),
         'otp_ttl_minutes' => (int) env('INFOBIP_OTP_TTL_MINUTES', 10),
-        'otp_message' => env('INFOBIP_OTP_MESSAGE', 'Your Nearest Technician verification code is :code'),
+        'otp_message' => env('INFOBIP_OTP_MESSAGE', 'Your Nearest Technician verification code is :code. It expires in :minutes minutes.'),
     ],
 
     'clickpesa' => [

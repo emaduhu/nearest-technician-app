@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TechnicianApiController extends Controller
@@ -35,9 +36,7 @@ class TechnicianApiController extends Controller
         private readonly AppSettingsService $settings,
         private readonly BeemAfricaOtpService $beemOtp,
         private readonly InfobipOtpService $infobipOtp,
-    )
-    {
-    }
+    ) {}
 
     public function health(): JsonResponse
     {
@@ -100,6 +99,7 @@ class TechnicianApiController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'emailVerificationCode' => ['required', 'string', 'size:6'],
             'password' => ['required', 'string', 'min:6'],
+            'termsAccepted' => ['accepted'],
             'token' => ['nullable', 'string'],
             'deviceToken' => ['nullable', 'string'],
             'lat' => ['required', 'numeric'],
@@ -305,12 +305,13 @@ class TechnicianApiController extends Controller
         }
 
         $result = match ($provider) {
-            AppSettingsService::SMS_PROVIDER_BEEM => [
-                'verificationId' => $this->beemOtp->send($phone)['pinId'],
-            ],
-            AppSettingsService::SMS_PROVIDER_INFOBIP => [
-                'verificationId' => $this->infobipOtp->send($phone)['verificationId'],
-            ],
+            AppSettingsService::SMS_PROVIDER_BEEM => (function () use ($phone): array {
+                $result = $this->beemOtp->send($phone);
+                $result['verificationId'] = $result['pinId'];
+
+                return $result;
+            })(),
+            AppSettingsService::SMS_PROVIDER_INFOBIP => $this->infobipOtp->send($phone),
             default => null,
         };
         if ($result === null) {
@@ -326,6 +327,10 @@ class TechnicianApiController extends Controller
             'metadata' => [
                 'provider' => $provider,
                 'phone' => $this->phoneHint($phone),
+                'providerRequestId' => data_get($result, 'response.request_id'),
+                'providerMessage' => data_get($result, 'response.message'),
+                'providerValidRecipients' => data_get($result, 'response.valid'),
+                'providerInvalidRecipients' => data_get($result, 'response.invalid'),
             ],
         ]);
 
@@ -333,6 +338,9 @@ class TechnicianApiController extends Controller
             'ok' => true,
             'provider' => $provider,
             'verificationId' => $result['verificationId'],
+            'expiresInMinutes' => $provider === AppSettingsService::SMS_PROVIDER_BEEM
+                ? $this->beemOtp->expiryMinutes()
+                : $this->infobipOtp->expiryMinutes(),
             'message' => 'A verification code has been sent by SMS to your phone.',
         ]);
     }
@@ -714,7 +722,7 @@ class TechnicianApiController extends Controller
 
         $email = strtolower(trim($data['email']));
         $user = User::where('email', $email)->first();
-        if (!$user || !Hash::check($data['password'], $user->password)) {
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
             $this->audit($request, 'auth.login_failed', [
                 'entity_type' => 'user',
                 'entity_id' => $email,
@@ -1039,7 +1047,7 @@ class TechnicianApiController extends Controller
             ? Technician::findOrFail($data['technicianId'])
             : $this->nearestTechnician($data['skill'], $clientLat, $clientLon);
 
-        if (!$technician) {
+        if (! $technician) {
             return response()->json(['error' => 'No matching technician found'], 404);
         }
         if ($technician->user?->blocked) {
@@ -1454,7 +1462,7 @@ class TechnicianApiController extends Controller
 
     private function distanceKm(mixed $lat1, mixed $lon1, mixed $lat2, mixed $lon2): ?float
     {
-        if (!is_numeric($lat1) || !is_numeric($lon1) || !is_numeric($lat2) || !is_numeric($lon2)) {
+        if (! is_numeric($lat1) || ! is_numeric($lon1) || ! is_numeric($lat2) || ! is_numeric($lon2)) {
             return null;
         }
 
@@ -1838,7 +1846,7 @@ class TechnicianApiController extends Controller
     {
         $value = trim($value);
         if (! preg_match('/^data:image\/(jpeg|jpg|png);base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 $field => ['Capture a valid image before submitting.'],
             ]);
         }
@@ -1846,7 +1854,7 @@ class TechnicianApiController extends Controller
         $payload = preg_replace('/\s+/', '', $matches[2]) ?? '';
         $bytes = base64_decode($payload, true);
         if ($bytes === false || strlen($bytes) > 1_800_000) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 $field => ['The captured image is too large. Retake it closer and try again.'],
             ]);
         }

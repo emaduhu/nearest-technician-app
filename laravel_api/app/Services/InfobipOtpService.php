@@ -91,6 +91,11 @@ class InfobipOtpService
             && filled($this->sender());
     }
 
+    public function expiryMinutes(): int
+    {
+        return $this->ttlMinutes();
+    }
+
     private function ensureConfigured(): void
     {
         if (! $this->configured()) {
@@ -142,9 +147,16 @@ class InfobipOtpService
 
     private function message(string $pin): string
     {
-        $template = (string) config('services.infobip.otp_message', 'Your Nearest Technician verification code is :code');
+        $template = (string) config(
+            'services.infobip.otp_message',
+            'Your Nearest Technician verification code is :code. It expires in :minutes minutes.'
+        );
 
-        return str_replace(':code', $pin, $template);
+        return str_replace(
+            [':code', ':minutes'],
+            [$pin, (string) $this->ttlMinutes()],
+            $template
+        );
     }
 
     private function cacheKey(string $verificationId): string
@@ -167,7 +179,7 @@ class InfobipOtpService
     }
 
     /**
-     * @param array<string, mixed>|null $body
+     * @param  array<string, mixed>|null  $body
      */
     private function failureMessage(?array $body, string $rawBody): string
     {
@@ -181,7 +193,7 @@ class InfobipOtpService
     }
 
     /**
-     * @param array<string, mixed> $sendResponse
+     * @param  array<string, mixed>  $sendResponse
      */
     private function throwIfImmediatelyRejected(array $sendResponse): void
     {

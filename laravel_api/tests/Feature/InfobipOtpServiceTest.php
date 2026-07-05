@@ -18,7 +18,7 @@ class InfobipOtpServiceTest extends TestCase
         config()->set('services.infobip.api_key', 'test-api-key');
         config()->set('services.infobip.sender', 'GASCO');
         config()->set('services.infobip.otp_ttl_minutes', 10);
-        config()->set('services.infobip.otp_message', 'Your Nearest Technician verification code is :code');
+        config()->set('services.infobip.otp_message', 'Your Nearest Technician verification code is :code. It expires in :minutes minutes.');
     }
 
     public function test_it_sends_backend_generated_otp_through_infobip_sms_api(): void
@@ -48,6 +48,7 @@ class InfobipOtpServiceTest extends TestCase
         $result = app(InfobipOtpService::class)->send('+255 712 345 678');
 
         $this->assertNotEmpty($result['verificationId']);
+        $this->assertSame(10, app(InfobipOtpService::class)->expiryMinutes());
         Http::assertSent(function (Request $request): bool {
             if ($request->url() !== 'https://example.api.infobip.com/sms/3/messages') {
                 return false;
@@ -60,7 +61,7 @@ class InfobipOtpServiceTest extends TestCase
                 && $request->hasHeader('Content-Type', 'application/json')
                 && data_get($payload, 'messages.0.destinations.0.to') === '255712345678'
                 && data_get($payload, 'messages.0.sender') === 'GASCO'
-                && preg_match('/Your Nearest Technician verification code is \d{6}/', (string) data_get($payload, 'messages.0.content.text')) === 1;
+                && preg_match('/Your Nearest Technician verification code is \d{6}\. It expires in 10 minutes\./', (string) data_get($payload, 'messages.0.content.text')) === 1;
         });
         Http::assertSent(function (Request $request): bool {
             return str_starts_with($request->url(), 'https://example.api.infobip.com/sms/3/logs')

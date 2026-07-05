@@ -48,8 +48,16 @@ class AppLocalizations {
       : 'Capture the full ID exactly as it is. All four corners must be visible.';
   String get facePhoto => isSwahili ? 'Picha ya uso' : 'Face photo';
   String get facePhotoHint => isSwahili
-      ? 'Piga picha ya uso wako wazi kwa uhakiki wa msimamizi.'
-      : 'Capture a clear face photo for admin review.';
+      ? 'Piga picha ya uso wako wazi. App itatambua uso kiotomatiki.'
+      : 'Capture a clear face photo. The app will auto-detect your face.';
+  String get detectingFace =>
+      isSwahili ? 'Inatambua uso...' : 'Detecting face...';
+  String get faceNotDetected => isSwahili
+      ? 'Uso haujatambuliwa. Piga picha tena ukiangalia kamera vizuri.'
+      : 'No face was detected. Retake the photo while looking clearly at the camera.';
+  String get multipleFacesDetected => isSwahili
+      ? 'Nyuso zaidi ya moja zimetambuliwa. Piga picha yako peke yako.'
+      : 'More than one face was detected. Retake the photo with only your face visible.';
   String get captureNidaCard =>
       isSwahili ? 'Piga picha ya NIDA' : 'Capture NIDA ID';
   String get retakeNidaCard =>
@@ -195,6 +203,9 @@ class AppLocalizations {
   String get phoneCodeSent => isSwahili
       ? 'Msimbo umetumwa kwa SMS kwenye simu yako'
       : 'A code has been sent by SMS to your phone';
+  String phoneCodeSentWithExpiry(int minutes) => isSwahili
+      ? 'Msimbo umetumwa kwa SMS kwenye simu yako. Utakwisha baada ya dakika $minutes.'
+      : 'A code has been sent by SMS to your phone. It expires in $minutes minutes.';
   String get smsAutoReadHint => isSwahili
       ? 'Tukipata SMS kiotomatiki, msimbo utajazwa bila kubonyeza kitu.'
       : 'If Android reads the SMS automatically, the code fills itself.';
@@ -248,6 +259,12 @@ class AppLocalizations {
       : 'Enter the 6-digit code sent to you.';
   String get minPassword =>
       isSwahili ? 'Angalau herufi 6' : 'Minimum 6 characters';
+  String get acceptTerms => isSwahili
+      ? 'Nakubali vigezo na masharti ya kutumia Nearest Technician.'
+      : 'I agree to the Nearest Technician terms and conditions.';
+  String get termsRequired => isSwahili
+      ? 'Kubali vigezo na masharti kabla ya kuendelea'
+      : 'Accept the terms and conditions before continuing';
   String get signingIn => isSwahili ? 'Inaingia...' : 'Signing in...';
   String get gettingLocation =>
       isSwahili ? 'Inapata eneo...' : 'Getting location...';

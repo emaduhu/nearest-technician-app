@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 import '../l10n/app_localizations.dart';
 import '../services/fcm_service.dart';
@@ -41,6 +43,15 @@ class _RegisterPageState extends State<RegisterPage> {
   final FcmService _fcm = FcmService();
   final ApiService _api = ApiService();
   final ImagePicker _imagePicker = ImagePicker();
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      performanceMode: FaceDetectorMode.fast,
+      enableClassification: false,
+      enableContours: false,
+      enableLandmarks: false,
+      minFaceSize: 0.15,
+    ),
+  );
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _nidaCtrl = TextEditingController();
@@ -78,6 +89,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _emailVerificationLoading = false;
   bool _phoneVerificationError = false;
   bool _emailVerificationError = false;
+  bool _termsAccepted = false;
   bool _loading = false;
   bool _loginMode = false;
 
@@ -191,6 +203,10 @@ class _RegisterPageState extends State<RegisterPage> {
           return;
         }
       }
+      if (!_termsAccepted) {
+        setState(() => _status = l10n.termsRequired);
+        return;
+      }
       if (!_phoneVerified || _phoneIdToken == null || _verifiedPhone != phone) {
         setState(() {
           _status = l10n.phoneVerificationRequired;
@@ -240,6 +256,7 @@ class _RegisterPageState extends State<RegisterPage> {
           'password': _passwordCtrl.text,
           'phoneVerificationIdToken': _phoneIdToken,
           'phoneVerificationProvider': _phoneVerificationProvider,
+          'termsAccepted': _termsAccepted,
           'skills': _skillsCtrl.text,
           'token': _token ?? '',
           'lat': pos.latitude,
@@ -554,15 +571,16 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     if (mounted) {
+      final message = _phoneCodeSentMessage(response, l10n);
       setState(() {
         _loading = false;
         _phoneVerificationId = verificationId;
         _phoneCodeSent = true;
         _phoneResendToken = null;
-        _status = l10n.phoneCodeSent;
+        _status = message;
         _phoneVerificationLoading = false;
         _phoneVerificationError = false;
-        _phoneVerificationMessage = l10n.phoneCodeSent;
+        _phoneVerificationMessage = message;
       });
     }
   }
@@ -755,6 +773,19 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
 
+      if (type == _RegistrationPhotoType.face) {
+        setState(() => _status = l10n.detectingFace);
+        final faceCount = await _detectFaceCount(file.path);
+        if (faceCount == 0) {
+          setState(() => _status = l10n.faceNotDetected);
+          return;
+        }
+        if (faceCount > 1) {
+          setState(() => _status = l10n.multipleFacesDetected);
+          return;
+        }
+      }
+
       final bytes = await file.readAsBytes();
       final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       if (mounted) {
@@ -775,6 +806,31 @@ class _RegisterPageState extends State<RegisterPage> {
         setState(() => _status = _messageForError(e, l10n));
       }
     }
+  }
+
+  Future<int> _detectFaceCount(String imagePath) async {
+    if (kIsWeb) {
+      return 1;
+    }
+
+    final faces =
+        await _faceDetector.processImage(InputImage.fromFilePath(imagePath));
+    return faces.length;
+  }
+
+  String _phoneCodeSentMessage(
+    Map<String, dynamic> response,
+    AppLocalizations l10n,
+  ) {
+    final expiresIn = response['expiresInMinutes'];
+    if (expiresIn is int && expiresIn > 0) {
+      return l10n.phoneCodeSentWithExpiry(expiresIn);
+    }
+    if (expiresIn is num && expiresIn > 0) {
+      return l10n.phoneCodeSentWithExpiry(expiresIn.toInt());
+    }
+
+    return l10n.phoneCodeSent;
   }
 
   String _messageForError(Object error, AppLocalizations l10n) {
@@ -947,6 +1003,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _skillsCtrl.dispose();
     _smsCodeCtrl.dispose();
     _emailCodeCtrl.dispose();
+    _faceDetector.close();
     super.dispose();
   }
 
@@ -1280,6 +1337,21 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ? l10n.minPassword
                                   : null,
                             ),
+                            if (!_loginMode) ...[
+                              const SizedBox(height: 12),
+                              CheckboxListTile(
+                                value: _termsAccepted,
+                                onChanged: _loading
+                                    ? null
+                                    : (value) => setState(
+                                        () => _termsAccepted = value ?? false),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(l10n.acceptTerms),
+                              ),
+                            ],
                             const SizedBox(height: 18),
                             FilledButton.icon(
                               style: FilledButton.styleFrom(
