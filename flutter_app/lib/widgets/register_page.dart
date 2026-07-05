@@ -61,6 +61,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
   final _skillsCtrl = TextEditingController();
   final _smsCodeCtrl = TextEditingController();
   final _emailCodeCtrl = TextEditingController();
@@ -1027,6 +1028,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     _skillsCtrl.dispose();
     _smsCodeCtrl.dispose();
     _emailCodeCtrl.dispose();
@@ -1369,6 +1371,23 @@ class _RegisterPageState extends State<RegisterPage> {
                                   : null,
                             ),
                             if (!_loginMode) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _confirmPasswordCtrl,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.lock_reset_outlined),
+                                ).copyWith(labelText: l10n.confirmPassword),
+                                obscureText: true,
+                                validator: (v) {
+                                  if (v == null || v.length < 6) {
+                                    return l10n.minPassword;
+                                  }
+                                  if (v != _passwordCtrl.text) {
+                                    return l10n.passwordsDoNotMatch;
+                                  }
+                                  return null;
+                                },
+                              ),
                               const SizedBox(height: 12),
                               CheckboxListTile(
                                 value: _termsAccepted,

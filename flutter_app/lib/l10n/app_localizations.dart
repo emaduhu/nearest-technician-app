@@ -175,6 +175,10 @@ class AppLocalizations {
       isSwahili ? 'Ujuzi, tenganisha kwa koma' : 'Skills, comma separated';
   String get email => isSwahili ? 'Barua pepe' : 'Email';
   String get password => isSwahili ? 'Nenosiri' : 'Password';
+  String get confirmPassword =>
+      isSwahili ? 'Thibitisha nenosiri' : 'Confirm password';
+  String get passwordsDoNotMatch =>
+      isSwahili ? 'Nenosiri halifanani' : 'Passwords do not match';
   String get invalidCredentials => isSwahili
       ? 'Barua pepe au nenosiri si sahihi'
       : 'Email or password is incorrect';
