@@ -48,26 +48,6 @@ class DatabaseSeeder extends Seeder
                 'longitude' => 39.2083,
                 'rating' => 4.8,
             ],
-            [
-                'name' => 'Baraka Mwita',
-                'nida' => '19000101000000000004',
-                'email' => 'baraka.tech@example.com',
-                'phone' => '+255700100002',
-                'skills' => ['Electrical', 'Solar', 'Wiring'],
-                'latitude' => -6.8161,
-                'longitude' => 39.2803,
-                'rating' => 4.7,
-            ],
-            [
-                'name' => 'Neema John',
-                'nida' => '19000101000000000005',
-                'email' => 'neema.tech@example.com',
-                'phone' => '+255700100003',
-                'skills' => ['Appliance repair', 'Refrigeration', 'AC'],
-                'latitude' => -6.7712,
-                'longitude' => 39.2429,
-                'rating' => 4.9,
-            ],
         ];
 
         User::updateOrCreate(['email' => 'client@example.com'], [
