@@ -48,6 +48,17 @@ def contain(image, box):
     return copy, (x, y)
 
 
+def cover(image, box, anchor_y=0.5):
+    w = box[2] - box[0]
+    h = box[3] - box[1]
+    scale = max(w / image.width, h / image.height)
+    resized = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+    left = max(0, (resized.width - w) // 2)
+    max_top = max(0, resized.height - h)
+    top = int(max_top * anchor_y)
+    return resized.crop((left, top, left + w, top + h)), (box[0], box[1])
+
+
 def text_size(draw, value, face):
     box = draw.textbbox((0, 0), value, font=face)
     return box[2] - box[0], box[3] - box[1]
@@ -116,7 +127,26 @@ def crop_tablet_content(image):
     return image.crop((int(w * 0.28), int(h * 0.04), int(w * 0.72), int(h * 0.94)))
 
 
-def frame_screenshot(base, screenshot, box, radius, shadow=True):
+def crop_app_content(source_name, image):
+    w, h = image.size
+    name = source_name.lower()
+    if "login" in name:
+        crop = (0.23, 0.34, 0.77, 0.70)
+        anchor_y = 0.52
+    elif "documents" in name:
+        crop = (0.24, 0.02, 0.76, 0.72)
+        anchor_y = 0.22
+    elif "technician" in name:
+        crop = (0.24, 0.02, 0.76, 0.74)
+        anchor_y = 0.30
+    else:
+        crop = (0.24, 0.26, 0.76, 0.78)
+        anchor_y = 0.46
+    left, top, right, bottom = crop
+    return image.crop((int(w * left), int(h * top), int(w * right), int(h * bottom))), anchor_y
+
+
+def frame_screenshot(base, screenshot, box, radius, shadow=True, fit="contain", anchor_y=0.5):
     if shadow:
         shadow_layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
         shadow_draw = ImageDraw.Draw(shadow_layer)
@@ -127,7 +157,7 @@ def frame_screenshot(base, screenshot, box, radius, shadow=True):
     draw = ImageDraw.Draw(base)
     rounded(draw, box, radius, SURFACE, BORDER, 2)
     inner = (box[0] + 18, box[1] + 18, box[2] - 18, box[3] - 18)
-    shot, pos = contain(screenshot, inner)
+    shot, pos = cover(screenshot, inner, anchor_y) if fit == "cover" else contain(screenshot, inner)
     mask = Image.new("L", shot.size, 0)
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.rounded_rectangle((0, 0, shot.width, shot.height), radius=max(radius - 18, 12), fill=255)
@@ -159,11 +189,11 @@ def make_store_screenshot(source_name, out_path, size, title, subtitle, tablet=F
     draw_wrapped_text(draw, (title_x, y + int(size[1] * 0.012)), subtitle, subtitle_size, max_text_width, MUTED, False, 1.18, 2)
 
     raw = Image.open(SRC / source_name).convert("RGBA")
-    crop = crop_tablet_content(raw) if tablet else crop_phone_content(raw)
-    margin_x = int(size[0] * (0.17 if tablet else 0.15))
-    top = int(size[1] * 0.275)
-    bottom = int(size[1] * 0.89)
-    frame_screenshot(base, crop, (margin_x, top, size[0] - margin_x, bottom), int(size[0] * 0.035))
+    crop, anchor_y = crop_app_content(source_name, raw)
+    margin_x = int(size[0] * (0.13 if tablet else 0.105))
+    top = int(size[1] * 0.29)
+    bottom = int(size[1] * 0.875)
+    frame_screenshot(base, crop, (margin_x, top, size[0] - margin_x, bottom), int(size[0] * 0.035), fit="cover", anchor_y=anchor_y)
 
     pill = (
         int(size[0] * 0.105),
@@ -206,10 +236,10 @@ def feature_graphic():
     text(draw, (214, 154), "Technician", 44, TEXT, True)
     draw_wrapped_text(draw, (88, 240), "Find nearby help and verify technicians.", 26, 470, MUTED, False, 1.2, 2)
 
-    left = crop_phone_content(Image.open(SRC / "phone-client.png").convert("RGBA"))
-    right = crop_phone_content(Image.open(SRC / "phone-documents.png").convert("RGBA"))
-    frame_screenshot(base, left, (650, 70, 792, 450), 24, shadow=True)
-    frame_screenshot(base, right, (820, 70, 962, 450), 24, shadow=True)
+    left, left_anchor = crop_app_content("phone-client.png", Image.open(SRC / "phone-client.png").convert("RGBA"))
+    right, right_anchor = crop_app_content("phone-documents.png", Image.open(SRC / "phone-documents.png").convert("RGBA"))
+    frame_screenshot(base, left, (650, 70, 792, 450), 24, shadow=True, fit="cover", anchor_y=left_anchor)
+    frame_screenshot(base, right, (820, 70, 962, 450), 24, shadow=True, fit="cover", anchor_y=right_anchor)
 
     for i, label in enumerate(["Nearby search", "Verified profiles", "Secure requests"]):
         x = 88 + i * 166
