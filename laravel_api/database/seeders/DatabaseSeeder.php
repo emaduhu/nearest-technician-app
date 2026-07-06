@@ -13,19 +13,6 @@ class DatabaseSeeder extends Seeder
     {
         $testPassword = '123qaz!@#WSX';
 
-        User::firstOrCreate(
-            ['email' => env('PORTAL_ADMIN_EMAIL', 'admin@nt.vigourtech.net')],
-            [
-                'role' => 'admin',
-                'name' => env('PORTAL_ADMIN_NAME', 'Portal Administrator'),
-                'nida' => env('PORTAL_ADMIN_NIDA', '19000101000000000001'),
-                'phone' => env('PORTAL_ADMIN_PHONE', '+255700000000'),
-                'phone_verified_at' => now(),
-                'email_verified_at' => now(),
-                'password' => Hash::make((string) env('PORTAL_ADMIN_PASSWORD', 'password')),
-            ],
-        );
-
         $technicians = [
             [
                 'name' => 'Evaristus Maduhu',
@@ -38,28 +25,7 @@ class DatabaseSeeder extends Seeder
                 'rating' => 5.0,
                 'password' => $testPassword,
             ],
-            [
-                'name' => 'Asha Msuya',
-                'nida' => '19000101000000000003',
-                'email' => 'asha.tech@example.com',
-                'phone' => '+255700100001',
-                'skills' => ['Plumbing', 'Water pumps', 'Leak repair'],
-                'latitude' => -6.7924,
-                'longitude' => 39.2083,
-                'rating' => 4.8,
-            ],
         ];
-
-        User::updateOrCreate(['email' => 'client@example.com'], [
-            'role' => 'client',
-            'name' => 'Demo Client',
-            'nida' => '19000101000000000002',
-            'phone' => '+255700200001',
-            'phone_verified_at' => now(),
-            'email_verified_at' => now(),
-            'password' => Hash::make('password'),
-            'last_location' => ['latitude' => -6.8, 'longitude' => 39.25, 'updatedAt' => now()->toISOString()],
-        ]);
 
         User::updateOrCreate(['email' => 'sample.client@vigourtech.net'], [
             'role' => 'client',
