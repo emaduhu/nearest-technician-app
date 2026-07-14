@@ -57,7 +57,7 @@ return [
         'otp_request_url' => env('BEEM_OTP_REQUEST_URL', 'https://apiotp.beem.africa/v1/request'),
         'otp_verify_url' => env('BEEM_OTP_VERIFY_URL', 'https://apiotp.beem.africa/v1/verify'),
         'otp_app_id' => env('BEEM_OTP_APP_ID'),
-        'sender' => env('BEEM_SENDER', 'INFO'),
+        'sender' => env('BEEM_SENDER', 'VIGOURTECH'),
         'access_key' => env('BEEM_ACCESS_KEY'),
         'secret_key' => env('BEEM_SECRET_KEY'),
         'otp_ttl_minutes' => (int) env('BEEM_OTP_TTL_MINUTES', 10),

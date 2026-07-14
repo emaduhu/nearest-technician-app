@@ -19,7 +19,7 @@ class BeemAfricaOtpServiceTest extends TestCase
         config()->set('services.beem.otp_request_url', 'https://apiotp.beem.africa/v1/request');
         config()->set('services.beem.otp_verify_url', 'https://apiotp.beem.africa/v1/verify');
         config()->set('services.beem.otp_app_id', '4695');
-        config()->set('services.beem.sender', 'GASCO');
+        config()->set('services.beem.sender', 'VIGOURTECH');
         config()->set('services.beem.access_key', 'test-key');
         config()->set('services.beem.secret_key', 'test-secret');
         config()->set('services.beem.otp_ttl_minutes', 10);
@@ -84,7 +84,7 @@ class BeemAfricaOtpServiceTest extends TestCase
                 && $request->method() === 'POST'
                 && $request->hasHeader('Authorization', 'Basic '.base64_encode('test-key:test-secret'))
                 && $request->hasHeader('Content-Type', 'application/json')
-                && $payload['source_addr'] === 'GASCO'
+                && $payload['source_addr'] === 'VIGOURTECH'
                 && $payload['encoding'] === 0
                 && $payload['schedule_time'] === ''
                 && preg_match('/Your Nearest Technician verification code is \d{6}\. It expires in 10 minutes\./', $payload['message']) === 1
